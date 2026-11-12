@@ -34,6 +34,16 @@ cd backend && uv run pytest -q && uv run ruff check .
 cd frontend && npx ng build && npx ng test --watch=false     # needs CHROME_BIN for Karma if Chrome is not on PATH
 ```
 
+## Deploy
+
+First deploy (Supabase + Google Cloud Run + Cloudflare Pages) is guided by an interactive wizard:
+
+```bash
+scripts/deploy-wizard.sh
+```
+
+It opens each console, tells you what to click, stores captured values in the gitignored `.env.deploy`, runs migrations + seed against Supabase, deploys the API to Cloud Run and the PWA to Cloudflare Pages. Re-running it is safe: it offers the values already saved.
+
 ## Never commit
 `apto-docs/` (personal documents) and `seed/*.json` (real financial data; only `*.example.json` is allowed) are in
 `.gitignore`. Also never commit `.env` files.
