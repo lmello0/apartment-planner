@@ -29,3 +29,6 @@ Thumbs.db
 
 # Local dev runtime data (logs, pids)
 .devdata/
+
+# Cloudflare wrangler local state
+.wrangler/
