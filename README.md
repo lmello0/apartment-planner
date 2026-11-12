@@ -39,7 +39,7 @@ cd frontend && npx ng build && npx ng test --watch=false     # needs CHROME_BIN 
 First deploy (Supabase + Google Cloud Run + Cloudflare Pages) is guided by an interactive wizard:
 
 ```bash
-scripts/deploy-wizard.sh
+scripts/deploy-wizard.sh            # FROM=8 scripts/deploy-wizard.sh resumes at stage 8
 ```
 
 It opens each console, tells you what to click, stores captured values in the gitignored `.env.deploy`, runs migrations + seed against Supabase, deploys the API to Cloud Run and the PWA to Cloudflare Pages. Re-running it is safe: it offers the values already saved.

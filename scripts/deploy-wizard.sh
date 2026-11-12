@@ -209,10 +209,22 @@ TOTAL_STAGES=10
 GCP_REGION_DEFAULT="southamerica-east1"
 RUN_SERVICE="apartment-planner-api"
 
+
+# Resume: FROM=8 scripts/deploy-wizard.sh skips stages 1-7 using values saved in .env.deploy.
+FROM="${FROM:-1}"
+want() { # want N "Name": run stage N, or count it as done when resuming past it
+  if (( $1 < FROM )); then _STAGE_INDEX=$((_STAGE_INDEX + 1)); return 1; fi
+  stage "$2"
+}
+for k in SUPABASE_URL SUPABASE_ANON_KEY DATABASE_URL OWNER_EMAIL PAGES_PROJECT PAGES_URL GCP_PROJECT_ID GCP_REGION API_URL; do
+  if v=$(_existing "$k"); then printf -v "$k" '%s' "$v"; fi
+done
+[[ -n "${SUPABASE_URL:-}" ]] && SB_REF=$(sed -E 's#https://([^.]+)\.supabase\.co.*#\1#' <<<"$SUPABASE_URL")
+
 banner "Deploy do Apartment Planner (Supabase + Cloud Run + Cloudflare Pages)"
 
 # ── 1 ─────────────────────────────────────────────────────────────────────
-stage "Pré-requisitos"
+if want 1 "Pré-requisitos"; then
 say "Conferindo ferramentas locais e o seed do contrato."
 missing=0
 for t in uv node npx curl; do
@@ -231,9 +243,10 @@ fi
 if (( missing )); then warn "Resolva os itens acima e rode de novo: scripts/deploy-wizard.sh"; exit 1; fi
 note "Valores capturados ficam em .env.deploy (ignorado pelo git, modo 0600)."
 pause
+fi
 
 # ── 2 ─────────────────────────────────────────────────────────────────────
-stage "Supabase: criar o projeto"
+if want 2 "Supabase: criar o projeto"; then
 open_url "https://supabase.com/dashboard/new"
 step "Crie um projeto (ex.: apartment-planner), região South America (São Paulo)."
 step "Anote a senha do banco que você definir — ela vai na connection string."
@@ -249,9 +262,10 @@ note "Ela é pública por design (vai no frontend). NUNCA use a secret/service_r
 ask SUPABASE_ANON_KEY "Publishable/anon key:"
 write_env SUPABASE_ANON_KEY "$SUPABASE_ANON_KEY"
 pause
+fi
 
 # ── 3 ─────────────────────────────────────────────────────────────────────
-stage "Supabase: banco e chaves JWT"
+if want 3 "Supabase: banco e chaves JWT"; then
 open_url "https://supabase.com/dashboard/project/$SB_REF?showConnect=true"
 step "No painel 'Connect', escolha a aba/tipo 'Session pooler' (IPv4 — o Cloud Run não fala IPv6)."
 step "Copie a URI (postgresql://postgres.<ref>:[YOUR-PASSWORD]@aws-…pooler.supabase.com:5432/postgres)"
@@ -265,9 +279,10 @@ step "Em 'JWT Signing Keys', confira que a chave em uso (Current key) é ECC (P-
 note "O backend valida tokens via JWKS (ES256/RS256). Se aparecer só 'Legacy JWT secret (HS256)',"
 note "clique para migrar/rotacionar para as novas signing keys antes de continuar."
 pause "Chave atual é ECC/RSA? Enter para continuar"
+fi
 
 # ── 4 ─────────────────────────────────────────────────────────────────────
-stage "Supabase: login só para você"
+if want 4 "Supabase: login só para você"; then
 open_url "https://supabase.com/dashboard/project/$SB_REF/auth/providers"
 step "Desligue 'Allow new users to sign up' (Sign In / Providers → User Signups) e salve."
 step "Confira que o provider Email está habilitado."
@@ -277,9 +292,10 @@ open_url "https://supabase.com/dashboard/project/$SB_REF/auth/users"
 step "Add user → Create new user → e-mail: $OWNER_EMAIL, marque 'Auto Confirm User'."
 note "O login é por magic link; a senha pode ser qualquer uma forte (não será usada)."
 pause "Usuário criado? Enter para continuar"
+fi
 
 # ── 5 ─────────────────────────────────────────────────────────────────────
-stage "Banco: migrations + carga do seu contrato"
+if want 5 "Banco: migrations + carga do seu contrato"; then
 say "Vou rodar 'alembic upgrade head' e 'import-seed' contra o Supabase."
 warn "import-seed APAGA e recarrega todos os dados do app (ok agora: banco novo)."
 if confirm "Rodar migrations e importar seed/apto-166.json no Supabase?"; then
@@ -291,9 +307,10 @@ else
   SKIPPED+=("migrations + seed no Supabase (cd backend && uv run alembic upgrade head && uv run python -m app.cli import-seed ../seed/apto-166.json)")
 fi
 pause
+fi
 
 # ── 6 ─────────────────────────────────────────────────────────────────────
-stage "Cloudflare Pages: criar o projeto"
+if want 6 "Cloudflare Pages: criar o projeto"; then
 say "Vamos logar o wrangler (abre o navegador) e criar o projeto do frontend."
 ( cd frontend && npx --yes wrangler login )
 ask PAGES_PROJECT "Nome do projeto no Pages (vira <nome>.pages.dev) [ex.: apartment-planner-lm]:"
@@ -302,19 +319,26 @@ write_env PAGES_PROJECT "$PAGES_PROJECT"
   || warn "Criação falhou (nome em uso ou projeto já existe). Se já existe e é seu, siga; senão rode de novo com outro nome."
 write_env PAGES_URL "https://$PAGES_PROJECT.pages.dev"
 pause
+fi
 
 # ── 7 ─────────────────────────────────────────────────────────────────────
-stage "Supabase: URLs de redirecionamento do magic link"
+if want 7 "Supabase: URLs de redirecionamento do magic link"; then
 open_url "https://supabase.com/dashboard/project/$SB_REF/auth/url-configuration"
 step "Site URL: $PAGES_URL"
 step "Redirect URLs: adicione  $PAGES_URL/**  e  http://localhost:4200/**"
 step "Salve."
 pause "Feito? Enter para continuar"
+fi
 
 # ── 8 ─────────────────────────────────────────────────────────────────────
-stage "Google Cloud: projeto, faturamento e APIs"
-say "Login no gcloud (abre o navegador; no WSL pode mostrar um link para colar)."
-gcloud auth login --update-adc=false
+if want 8 "Google Cloud: projeto, faturamento e APIs"; then
+ACTIVE_ACCOUNT=$(gcloud auth list --filter=status:ACTIVE --format='value(account)' 2>/dev/null | head -n1)
+if [[ -n "$ACTIVE_ACCOUNT" ]]; then
+  step "gcloud já logado como $ACTIVE_ACCOUNT"
+else
+  say "Login no gcloud (abre o navegador; no WSL pode mostrar um link para colar)."
+  gcloud auth login
+fi
 ask GCP_PROJECT_ID "ID do projeto GCP (existente ou novo, ex.: apartment-planner-lm):"
 write_env GCP_PROJECT_ID "$GCP_PROJECT_ID"
 if ! gcloud projects describe "$GCP_PROJECT_ID" >/dev/null 2>&1; then
@@ -339,9 +363,10 @@ gcloud services enable run.googleapis.com cloudbuild.googleapis.com \
   artifactregistry.googleapis.com secretmanager.googleapis.com --project "$GCP_PROJECT_ID"
 step "APIs habilitadas."
 pause
+fi
 
 # ── 9 ─────────────────────────────────────────────────────────────────────
-stage "Cloud Run: deploy do backend"
+if want 9 "Cloud Run: deploy do backend"; then
 PROJECT_NUMBER=$(gcloud projects describe "$GCP_PROJECT_ID" --format='value(projectNumber)')
 RUN_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
 say "Guardando DATABASE_URL no Secret Manager (secret 'database-url')…"
@@ -371,9 +396,10 @@ else
   warn "Sem backend o frontend não funciona."; exit 1
 fi
 pause
+fi
 
 # ── 10 ────────────────────────────────────────────────────────────────────
-stage "Cloudflare Pages: build e deploy do frontend"
+if want 10 "Cloudflare Pages: build e deploy do frontend"; then
 say "Gerando frontend/src/environments/environment.production.ts com valores públicos:"
 cat > frontend/src/environments/environment.production.ts <<EOF
 export const environment = {
@@ -395,7 +421,7 @@ step "Entre com $OWNER_EMAIL, abra o link do e-mail e confira o painel:"
 note "  pago R\$ 10.744,00 · próximos: Corretagem 4/6 15/11 e ITBI 30/11"
 note "  No celular: abra $PAGES_URL e use 'Adicionar à tela inicial'."
 pause "Tudo certo? Enter para finalizar"
-
+fi
 finish
 note "Redeploy do backend: gcloud run deploy $RUN_SERVICE --source backend --region $GCP_REGION"
 note "Redeploy do frontend: cd frontend && npx ng build && npx wrangler pages deploy <dist> --project-name $PAGES_PROJECT --branch main"
