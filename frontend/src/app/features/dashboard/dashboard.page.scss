@@ -1,0 +1,50 @@
+:host { display: block; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(11.5rem, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.9rem 1rem; display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+.kpi--alert { border-color: var(--danger); }
+.kpi__label { font-size: 0.8125rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.kpi__value { font-size: 1.3rem; white-space: nowrap; font-weight: 600; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.kpi__value--ok { color: var(--ok); }
+.kpi__value--bad { color: var(--danger); }
+.kpi__note { font-size: 0.8125rem; color: var(--muted); }
+:host ::ng-deep .kpi__bar, :host ::ng-deep .by__bar { height: 0.4rem; }
+:host ::ng-deep .bar--bad .p-progressbar-value { background: var(--danger); }
+
+.card--alert { border-color: var(--danger); margin-bottom: 1rem; }
+.card h2 .muted, .card h2 .link-sm { font-size: 0.8125rem; font-weight: 400; }
+
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.grid__wide { grid-column: 1 / -1; }
+.grid__full { grid-column: 1 / -1; }
+
+.cap { display: flex; flex-direction: column; margin-bottom: 0.6rem; }
+.cap__value { font-size: 1.5rem; font-weight: 600; }
+:host ::ng-deep .cap__msg { margin-top: 0.75rem; }
+.cap__ok { margin: 0.6rem 0 0; }
+
+.tasks { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.7rem; }
+.tasks li { display: flex; gap: 0.7rem; align-items: flex-start; }
+.tasks label { display: flex; flex-direction: column; cursor: pointer; }
+.tasks__meta { font-size: 0.8125rem; }
+
+.chart { position: relative; height: 18rem; }
+
+.by { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.9rem; }
+.by li { display: grid; grid-template-columns: 13rem minmax(0, 1fr) 17rem; gap: 1rem; align-items: center; }
+.by__name { font-weight: 500; text-decoration: none; color: var(--ink); }
+.by__name:hover { color: var(--accent); text-decoration: underline; }
+.by__nums { text-align: right; font-size: 0.875rem; color: var(--muted); }
+.by__nums strong { color: var(--ink); }
+
+@media (max-width: 1100px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 860px) {
+  .grid { grid-template-columns: minmax(0, 1fr); }
+  .by li { grid-template-columns: minmax(0, 1fr); gap: 0.3rem; }
+  .by__nums { text-align: left; }
+  .chart { height: 15rem; }
+}
+@media (max-width: 420px) {
+  .kpis { gap: 0.5rem; }
+  .kpi { padding: 0.7rem 0.75rem; }
+  .kpi__value { font-size: 1.1rem; }
+}

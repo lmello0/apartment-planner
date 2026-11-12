@@ -1,0 +1,113 @@
+<app-page-header title="Painel" subtitle="Aura Humaitá · apartamento 166" [crumbs]="[{ label: 'Painel' }]">
+  <p-button label="Ver todas as parcelas" icon="pi pi-list-check" routerLink="/parcelas" severity="secondary" [outlined]="true" />
+</app-page-header>
+
+@if (data(); as d) {
+  <section class="kpis" aria-label="Resumo financeiro">
+    <div class="kpi">
+      <span class="kpi__label">Valor do contrato</span>
+      <strong class="kpi__value num">{{ d.totals.expected | brl }}</strong>
+      <span class="kpi__note">valores contratuais, sem correção</span>
+    </div>
+    <div class="kpi">
+      <span class="kpi__label">Correção INCC projetada</span>
+      <strong class="kpi__value num">{{ d.totals.projectedCorrection | brl }}</strong>
+      <span class="kpi__note">estimativa · total projetado {{ d.totals.projected | brl }}</span>
+    </div>
+    <div class="kpi">
+      <span class="kpi__label">Já pago</span>
+      <strong class="kpi__value num kpi__value--ok">{{ d.totals.paid | brl }}</strong>
+      <p-progressbar [value]="paidShare()" [showValue]="false" styleClass="kpi__bar" [attr.aria-label]="'Pago: ' + paidShare() + '%'" />
+      <span class="kpi__note">{{ paidShare() }}% do total projetado</span>
+    </div>
+    <div class="kpi">
+      <span class="kpi__label">A pagar</span>
+      <strong class="kpi__value num">{{ d.totals.pending | brl }}</strong>
+      <span class="kpi__note">com correção projetada, atrasos incluídos</span>
+    </div>
+    <div class="kpi" [class.kpi--alert]="hasOverdue()">
+      <span class="kpi__label">Em atraso</span>
+      <strong class="kpi__value num" [class.kpi__value--bad]="hasOverdue()">{{ d.totals.overdue | brl }}</strong>
+      <span class="kpi__note">
+        @if (hasOverdue()) { <i class="pi pi-exclamation-triangle"></i> {{ d.overdue.length }} parcela(s) vencida(s) } @else { <i class="pi pi-check"></i> nada vencido }
+      </span>
+    </div>
+  </section>
+
+  @if (hasOverdue()) {
+    <section class="card card--alert" aria-labelledby="h-overdue">
+      <h2 id="h-overdue">Atrasadas <span class="muted">multa de 10% + 1% ao mês (cl. 9ª)</span></h2>
+      <app-installment-list [items]="d.overdue" />
+    </section>
+  }
+
+  <div class="grid">
+    <section class="card grid__wide" aria-labelledby="h-upcoming">
+      <h2 id="h-upcoming">Próximos vencimentos <span class="muted">30 dias</span></h2>
+      <app-installment-list [items]="d.upcoming" emptyText="Nenhum vencimento nos próximos 30 dias." />
+    </section>
+
+    <section class="card" aria-labelledby="h-capacity">
+      <h2 id="h-capacity">Comprometimento do mês</h2>
+      <div class="cap">
+        <strong class="num cap__value" [class.kpi__value--bad]="d.capacity.exceeded">{{ d.capacity.currentMonthCommitment | brl }}</strong>
+        <span class="muted">de {{ d.capacity.monthlyCapacity | brl }} de capacidade</span>
+      </div>
+      <p-progressbar [value]="capacityShare()" [showValue]="false"
+        [styleClass]="d.capacity.exceeded ? 'bar--bad' : ''" [attr.aria-label]="'Capacidade usada: ' + capacityShare() + '%'" />
+      @if (d.capacity.exceeded) {
+        <p-message severity="error" icon="pi pi-exclamation-triangle" styleClass="cap__msg">
+          Este mês passa da sua capacidade em
+          <strong class="num">{{ d.capacity.currentMonthCommitment | brl }}</strong> contra
+          <strong class="num">{{ d.capacity.monthlyCapacity | brl }}</strong>. Ajuste a capacidade em Ajustes ou renegocie datas.
+        </p-message>
+      } @else {
+        <p class="muted cap__ok"><i class="pi pi-check"></i> Dentro da capacidade mensal.</p>
+      }
+    </section>
+
+    <section class="card" aria-labelledby="h-tasks">
+      <h2 id="h-tasks">Próximas tarefas <a routerLink="/tarefas" class="link-sm">ver todas</a></h2>
+      @if (d.nextTasks.length === 0) {
+        <p class="muted">Sem tarefas abertas.</p>
+      } @else {
+        <ul class="tasks">
+          @for (t of d.nextTasks; track t.id) {
+            <li>
+              <p-checkbox [binary]="true" [ngModel]="!!t.doneAt" [inputId]="'dt-' + t.id" (onChange)="toggle(t)" [ariaLabel]="'Concluir: ' + t.title" />
+              <label [for]="'dt-' + t.id">
+                <span>{{ t.title }}</span>
+                <span class="muted tasks__meta">{{ phase[t.phase] }}@if (t.dueDate) { · até {{ t.dueDate | dateBr }} }</span>
+              </label>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
+    <section class="card grid__full" aria-labelledby="h-monthly">
+      <h2 id="h-monthly">Desembolso mensal até as chaves <span class="muted">previsto × pago</span></h2>
+      <div class="chart">
+        <p-chart type="bar" [data]="chartData()" [options]="chartOptions" height="100%" width="100%" />
+      </div>
+    </section>
+
+    <section class="card grid__full" aria-labelledby="h-by">
+      <h2 id="h-by">Pago × a pagar por obrigação</h2>
+      <ul class="by">
+        @for (o of d.byObligation; track o.obligationId) {
+          <li>
+            <a [routerLink]="['/obrigacoes', o.obligationId]" class="by__name">{{ o.name }}</a>
+            <p-progressbar [value]="share(o.paid, o.projected)" [showValue]="false" styleClass="by__bar"
+              [attr.aria-label]="o.name + ': ' + share(o.paid, o.projected) + '% pago'" />
+            <span class="by__nums num">
+              <strong>{{ o.paid | brl }}</strong> pago · {{ o.pending | brl }} a pagar
+            </span>
+          </li>
+        }
+      </ul>
+    </section>
+  </div>
+} @else {
+  <p class="muted" role="status">Carregando o painel…</p>
+}
