@@ -1,5 +1,45 @@
 # API reference
 
+## Changes (documents module)
+For the frontend integrator — exactly what changed versus the previous contract:
+1. **`receiptPath` removed** from `PaymentIn` and `PaymentDto` (and the `payments.receipt_path` column). Receipts are now documents of category `PAYMENT_RECEIPT`; send `receiptPath` and it is ignored.
+2. **`InstallmentDto.documentCount: number`** (new) = number of ACTIVE documents linked to the installment (always present, `0` when none). Applies everywhere an `InstallmentDto` appears (installments list, obligation detail, dashboard `upcoming`/`overdue`, payment responses).
+3. **`DashboardDto.expiringDocuments: DocumentDto[]`** (new): ACTIVE documents with `expiry` EXPIRED or DUE_SOON, ordered by `validUntil` ascending (empty array when none).
+4. **New types**
+   ```
+   DocumentCategory = PAYMENT_RECEIPT|CONTRACT|PERSONAL_ID|INCOME_FGTS_TAX|FINANCING|TAXES_FEES|PROJECT_SPEC|OTHER
+                      (pt-BR labels: Comprovante de pagamento, Contrato, Documento pessoal, Renda/FGTS/IR,
+                       Financiamento/Caixa, Impostos e taxas, Projeto/Memorial, Outros — labels live in the frontend)
+   DocumentLink     = { type: INSTALLMENT|OBLIGATION|TASK|MILESTONE, id: string, label: string }
+                      (id = installment/obligation/task id, or the MilestoneKey; label = e.g. "Corretagem 4/6",
+                       the obligation name, the task title, the milestone label)
+   DocumentDto      = { id, title, category, documentDate: string|null, validUntil: string|null, notes: string|null,
+                        originalName, mimeType, sizeBytes: number, createdAt: ISO-8601 UTC, link: DocumentLink|null,
+                        expiry: VALID|DUE_SOON|EXPIRED|null }
+   DocumentIn       = { title, category, documentDate?, validUntil?, notes?, installmentId?, obligationId?, taskId?, milestoneKey? }
+                      (at most ONE of the four link fields; two or more → 422)
+   UploadInfo       = { url, method: "PUT", headers: { [name]: string } }
+   ```
+   `expiry` is null without `validUntil`; EXPIRED if `validUntil` < today (America/Sao_Paulo); DUE_SOON if within `dueSoonDays` (settings) of today, inclusive; else VALID.
+5. **New endpoints**
+   | Method & path | Body | Returns |
+   |---|---|---|
+   | `GET /api/documents?category=&q=&installmentId=&obligationId=&taskId=&milestoneKey=` | – | `DocumentDto[]` (ACTIVE only, newest first; `q` matches title, original name, notes) |
+   | `POST /api/documents` | `DocumentIn & { originalName, mimeType, sizeBytes }` | 201 `{ document: DocumentDto, upload: UploadInfo }` |
+   | `POST /api/documents/{id}/confirm` | – | `DocumentDto` (422 on failure, see below) |
+   | `PUT /api/documents/{id}` | `DocumentIn` (replaces all fields, including the link) | `DocumentDto` |
+   | `DELETE /api/documents/{id}` | – | 204 (also deletes the stored file) |
+   | `GET /api/documents/{id}/download-url` | – | `{ url, expiresAt }` (signed, ~5 min) |
+6. **Upload flow (3 steps)**: (a) `POST /api/documents` creates a `PENDING` document (hidden from lists) and returns `upload`; (b) the browser does `fetch(upload.url, { method: upload.method, headers: upload.headers, body: file })` — no auth header, no FormData; (c) `POST /api/documents/{id}/confirm` checks the object exists, is ≤ 20 MB and has an allowed mime type, then marks it `ACTIVE`. On failure it answers **422** `{detail}` and deletes both the object and the row (create a new document to retry). Confirming an already ACTIVE document is a no-op returning the document.
+7. **Validation / limits**: `mimeType` ∈ application/pdf, image/jpeg, image/png, image/heic, image/heif, image/webp and `1 ≤ sizeBytes ≤ 20971520` are checked on `POST /documents` (422) and re-checked against the real object on confirm. Unknown `installmentId`/`obligationId`/`taskId` → 404.
+8. **Cleanup**: every `POST /documents` deletes PENDING documents older than 24 h (row + object). CLI: `python -m app.cli cleanup-docs`.
+9. **Links**: FKs are `ON DELETE SET NULL` — deleting a task/obligation (or regenerating/deleting installments) keeps the document with `link: null`. Undoing a payment keeps the document and its link. Files are only deleted by `DELETE /documents/{id}`.
+10. **Download**: open `url` in a new tab. In production it is a Supabase Storage signed URL; in development (`STORAGE_BACKEND=local`) it points to `GET /api/dev-storage/{token}` on the API, and uploads go to `PUT /api/dev-storage/{token}`. Those two routes exist **only when `ENV != production`** and need no bearer token (the token in the path is the credential). With `ENV=production` the API requires `STORAGE_BACKEND=supabase`, `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
+11. **Config (backend)**: `SUPABASE_SERVICE_ROLE_KEY`, `STORAGE_BACKEND` (`supabase`|`local`), `STORAGE_BUCKET` (default `documents`), `STORAGE_LOCAL_DIR` (default `.devdata/files`), `API_PUBLIC_URL` (browser-visible API base for local URLs, default `http://localhost:8000`). Migration `0002` creates `documents` and drops `payments.receipt_path`.
+12. **CLI**: `import-docs <dir> --map <json> [--apply]` (dry run lists file → category/title; `--apply` uploads through the storage adapter and is idempotent by original file name) and `cleanup-docs`. Map: `{ "files": { "<relative path>": { title, category, documentDate?, validUntil?, notes?, obligationName?, milestoneKey? } } }` — see `seed/docs-map.example.json`.
+
+No deviations from the shared contract; additions: `API_PUBLIC_URL`, the dev-storage routes, and `upload.headers` carrying `Content-Type` (and `x-upsert: false` on Supabase).
+
 ## Changes (backend follow-up: contract vs projected, CONTRACT_REGISTERED)
 For the frontend integrator — exactly what changed versus the previous contract:
 1. **`DashboardDto.totals`** is now `{ expected, projected, projectedCorrection, paid, pending, overdue }`:
@@ -21,7 +61,6 @@ token, 403 when the token's e-mail is not the owner. `GET /api/health` needs no 
 `{"detail": ...}` — 404 not found, 409 already paid, 422 validation.
 
 Implementation notes (no deviations from the shared contract; additions only):
-- `PaymentIn` also accepts an optional `receiptPath`.
 - `POST`/`PUT /obligations` return `ObligationDto & { installments }`; `DELETE` calls return 204.
 - `projectedAmount` is computed on read from the current settings and milestones; for a paid
   installment it equals the amount actually paid.
@@ -30,9 +69,10 @@ Implementation notes (no deviations from the shared contract; additions only):
 
 ## Types
 ```
-PaymentDto     { paidOn, amount, method: PIX|BOLETO|DEBIT|FGTS|SUBSIDY, receiptPath: string|null }
+PaymentDto     { paidOn, amount, method: PIX|BOLETO|DEBIT|FGTS|SUBSIDY }
 InstallmentDto { id, obligationId, obligationName, seq, count, dueDate, expectedAmount,
-                 projectedAmount, status: PENDING|DUE_SOON|OVERDUE|PAID, payment: PaymentDto|null }
+                 projectedAmount, status: PENDING|DUE_SOON|OVERDUE|PAID, payment: PaymentDto|null,
+                 documentCount: number }
 ObligationDto  { id, name, payee, category, status: ESTIMATED|CONTRACTED,
                  fundingSource: OWN|FGTS|SUBSIDY|FINANCING, correctionIndex: NONE|INCC_DI|IGPM,
                  periodicity: ONCE|MONTHLY|ANNUAL|OPEN_ENDED, count: number|null, amount,
@@ -51,7 +91,8 @@ DashboardDto   { totals { expected, projected, projectedCorrection, paid, pendin
                  upcoming: InstallmentDto[], overdue: InstallmentDto[],
                  byObligation: [{ obligationId, name, expected, projected, paid, pending }], monthly: [{ month: "YYYY-MM", expected, paid }],
                  capacity { monthlyCapacity, currentMonthCommitment, exceeded },
-                 nextTasks: TaskDto[] }
+                 nextTasks: TaskDto[], expiringDocuments: DocumentDto[] }
+Document*      see "Changes (documents module)"
 ```
 Dashboard semantics: `expected` = sum of the contractual `expectedAmount`; `projected` = sum of
 `projectedAmount` (actual amount for paid ones); `projectedCorrection` = `projected − expected`;
@@ -67,7 +108,7 @@ to 5 open tasks ordered by due date (undated last).
 | `GET /api/health` | – | `{ "ok": true }` |
 | `GET /api/dashboard` | – | `DashboardDto` |
 | `GET /api/installments?status=&obligationId=&from=&to=` | – | `InstallmentDto[]` (by due date) |
-| `POST /api/installments/{id}/payment` | `{ paidOn, amount, method, receiptPath? }` | `InstallmentDto` (409 if already paid) |
+| `POST /api/installments/{id}/payment` | `{ paidOn, amount, method }` | `InstallmentDto` (409 if already paid) |
 | `DELETE /api/installments/{id}/payment` | – | `InstallmentDto` (undo) |
 | `GET /api/obligations` | – | `ObligationDto[]` |
 | `GET /api/obligations/{id}` | – | `ObligationDto & { installments }` |
@@ -81,6 +122,7 @@ to 5 open tasks ordered by due date (undated last).
 | `PUT /api/tasks/{id}` | same | `TaskDto` |
 | `DELETE /api/tasks/{id}` | – | 204 |
 | `POST /api/tasks/{id}/toggle` | – | `TaskDto` (done today ⇄ open) |
+| `GET/POST/PUT/DELETE /api/documents…` | – | see "Changes (documents module)" |
 | `GET /api/settings` / `PUT /api/settings` | `{ monthlyCapacity, inccMonthlyEstimate, igpmMonthlyEstimate, dueSoonDays }` | `SettingsDto` |
 
 Obligation body: `name, payee, category, status, fundingSource, correctionIndex, periodicity, count,

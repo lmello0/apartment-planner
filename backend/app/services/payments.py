@@ -21,7 +21,7 @@ def register(session: Session, installment_id: str, data: PaymentIn) -> Installm
     if inst.payment is not None:
         raise Conflict("installment already paid")
     inst.payment = Payment(paid_on=data.paid_on, amount=money(data.amount),
-                           method=data.method.value, receipt_path=data.receipt_path)
+                           method=data.method.value)
     session.flush()
     return inst
 

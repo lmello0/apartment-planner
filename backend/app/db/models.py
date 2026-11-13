@@ -1,12 +1,25 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import JSON, Date, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    CheckConstraint,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.clock import utcnow
 from app.db.base import Base
 
 MONEY = Numeric(14, 2)
@@ -79,7 +92,6 @@ class Payment(Base):
     paid_on: Mapped[date] = mapped_column(Date)
     amount: Mapped[Decimal] = mapped_column(MONEY)
     method: Mapped[str] = mapped_column(String(16))
-    receipt_path: Mapped[str | None] = mapped_column(String(500))
 
     installment: Mapped[Installment] = relationship(back_populates="payment")
 
@@ -113,3 +125,44 @@ class Settings(Base):
     incc_monthly_estimate: Mapped[Decimal] = mapped_column(Numeric(6, 3), default=Decimal("0.50"))
     igpm_monthly_estimate: Mapped[Decimal] = mapped_column(Numeric(6, 3), default=Decimal("0.40"))
     due_soon_days: Mapped[int] = mapped_column(Integer, default=7)
+
+
+class Document(Base):
+    """File metadata. The bytes live in the storage backend under `storage_key` (a UUID)."""
+
+    __tablename__ = "documents"
+    __table_args__ = (
+        CheckConstraint(
+            "(CASE WHEN installment_id IS NULL THEN 0 ELSE 1 END"
+            " + CASE WHEN obligation_id IS NULL THEN 0 ELSE 1 END"
+            " + CASE WHEN task_id IS NULL THEN 0 ELSE 1 END"
+            " + CASE WHEN milestone_key IS NULL THEN 0 ELSE 1 END) <= 1",
+            name="ck_documents_single_link",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    title: Mapped[str] = mapped_column(String(300))
+    category: Mapped[str] = mapped_column(String(24))
+    document_date: Mapped[date | None] = mapped_column(Date)
+    valid_until: Mapped[date | None] = mapped_column(Date, index=True)
+    notes: Mapped[str | None] = mapped_column(Text)
+    original_name: Mapped[str] = mapped_column(String(500))
+    mime_type: Mapped[str] = mapped_column(String(100))
+    size_bytes: Mapped[int] = mapped_column(BigInteger)
+    storage_key: Mapped[str] = mapped_column(String(36), unique=True, default=new_id)
+    status: Mapped[str] = mapped_column(String(8), default="PENDING", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    installment_id: Mapped[str | None] = mapped_column(
+        ForeignKey("installments.id", ondelete="SET NULL"), index=True
+    )
+    obligation_id: Mapped[str | None] = mapped_column(
+        ForeignKey("obligations.id", ondelete="SET NULL"), index=True
+    )
+    task_id: Mapped[str | None] = mapped_column(
+        ForeignKey("tasks.id", ondelete="SET NULL"), index=True
+    )
+    milestone_key: Mapped[str | None] = mapped_column(
+        ForeignKey("milestones.key", ondelete="SET NULL"), index=True
+    )

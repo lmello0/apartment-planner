@@ -4,6 +4,8 @@
 #   scripts/dev.sh stop-db    stop the local Postgres started by this script
 #   SKIP_SEED=1 scripts/dev.sh   keep the current database content (default: reload the seed)
 #   SEED_FILE=path scripts/dev.sh   use another seed file (default: seed/apto-166.json)
+#   scripts/dev.sh import-docs [--apply]   list (dry run) or upload apto-docs/ with seed/docs-map.json
+# Documents live in .devdata/files (STORAGE_BACKEND=local).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -18,6 +20,15 @@ if [[ "${1:-}" == "stop-db" ]]; then
   PGDATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/apartment-planner/pg"
   "$BACKEND/.venv/lib/"python*/site-packages/pgserver/pginstall/bin/pg_ctl -D "$PGDATA_DIR" stop -m fast
   exit 0
+fi
+
+if [[ "${1:-}" == "import-docs" ]]; then
+  shift
+  export STORAGE_BACKEND=local STORAGE_LOCAL_DIR="$ROOT/.devdata/files"
+  export DATABASE_URL
+  DATABASE_URL="$(cd "$BACKEND" && uv run python "$ROOT/scripts/dev_db.py")"
+  cd "$BACKEND" && exec uv run python -m app.cli import-docs "$ROOT/apto-docs" \
+    --map "${DOCS_MAP:-$ROOT/seed/docs-map.json}" "$@"
 fi
 
 command -v uv >/dev/null || { echo "uv is required (https://docs.astral.sh/uv/)"; exit 1; }
@@ -44,7 +55,11 @@ if [[ "${SKIP_SEED:-0}" != "1" ]]; then
   fi
 fi
 
-echo "==> API on http://localhost:$API_PORT (AUTH_DISABLED=true, CORS for http://localhost:4200)"
+# Documents are stored on local disk in dev (no Supabase Storage needed); the API serves them
+# through /api/dev-storage (only registered when ENV != production).
+export STORAGE_BACKEND=local STORAGE_LOCAL_DIR="$ROOT/.devdata/files" API_PUBLIC_URL="http://localhost:$API_PORT"
+
+echo "==> API on http://localhost:$API_PORT (AUTH_DISABLED=true, STORAGE_BACKEND=local, CORS for http://localhost:4200)"
 (cd "$BACKEND" && AUTH_DISABLED=true ENV=development CORS_ORIGINS=http://localhost:4200 \
   uv run uvicorn app.main:app --port "$API_PORT" --reload) >"$LOG_DIR/api.log" 2>&1 &
 API_PID=$!

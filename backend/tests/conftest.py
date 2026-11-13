@@ -8,7 +8,7 @@ os.environ["ENV"] = "test"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy import create_engine, event  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
@@ -19,6 +19,7 @@ from app.db.base import Base  # noqa: E402
 from app.db.session import get_session  # noqa: E402
 from app.main import app  # noqa: E402
 from app.services.seed import import_seed  # noqa: E402
+from app.storage import LocalStorage, get_storage  # noqa: E402
 
 EXAMPLE_SEED = Path(__file__).resolve().parents[2] / "seed" / "apto-166.example.json"
 TODAY = date(2026, 11, 11)
@@ -32,6 +33,10 @@ def session_factory():
     else:
         engine = create_engine(
             "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+
+        @event.listens_for(engine, "connect")
+        def _fk_on(dbapi_conn, _):  # SQLite ignores ON DELETE SET NULL unless enabled
+            dbapi_conn.execute("PRAGMA foreign_keys=ON")
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
     yield sessionmaker(engine, expire_on_commit=False)
@@ -40,7 +45,12 @@ def session_factory():
 
 
 @pytest.fixture
-def client(session_factory, monkeypatch):
+def storage(tmp_path):
+    return LocalStorage(tmp_path / "files", "http://testserver")
+
+
+@pytest.fixture
+def client(session_factory, storage, monkeypatch):
     monkeypatch.setattr(clock, "today", lambda: TODAY)
     monkeypatch.setattr("app.services.context.clock_today", lambda: TODAY)
     monkeypatch.setattr("app.services.tasks.today", lambda: TODAY)
@@ -50,6 +60,7 @@ def client(session_factory, monkeypatch):
             yield s
 
     app.dependency_overrides[get_session] = override
+    app.dependency_overrides[get_storage] = lambda: storage
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()

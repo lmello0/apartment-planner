@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.clock import today as clock_today
-from app.db.models import Installment, Milestone, Settings
+from app.db.models import Document, Installment, Milestone, Settings
 from app.domain.dashboard import InstallmentView
 from app.domain.projection import project
 from app.domain.types import CorrectionIndex, MilestoneKey
@@ -20,6 +20,10 @@ class NotFound(Exception):
 
 class Conflict(Exception):
     pass
+
+
+class Invalid(Exception):
+    """Semantically invalid request (HTTP 422)."""
 
 
 def get_settings(session: Session) -> Settings:
@@ -53,6 +57,7 @@ class Ctx:
     settings: Settings
     milestones: dict[MilestoneKey, date | None]
     today: date
+    doc_counts: dict[str, int] = field(default_factory=dict)  # installment id -> ACTIVE docs
 
     @property
     def habite_se(self) -> date | None:
@@ -76,7 +81,12 @@ class Ctx:
 
 
 def load_ctx(session: Session) -> Ctx:
-    return Ctx(get_settings(session), effective_milestones(session), clock_today())
+    rows = session.execute(
+        select(Document.installment_id, func.count())
+        .where(Document.status == "ACTIVE", Document.installment_id.is_not(None))
+        .group_by(Document.installment_id)).all()
+    counts = {r[0]: r[1] for r in rows}
+    return Ctx(get_settings(session), effective_milestones(session), clock_today(), counts)
 
 
 def all_views(session: Session, ctx: Ctx) -> list[tuple[Installment, InstallmentView]]:

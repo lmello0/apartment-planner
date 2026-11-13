@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, field_validator
+from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, field_validator, model_validator
 from pydantic.alias_generators import to_camel
 
 from app.domain.types import (
+    ALLOWED_DOCUMENT_MIMES,
+    MAX_DOCUMENT_BYTES,
     Category,
     CorrectionIndex,
+    DocumentCategory,
+    DocumentExpiry,
+    DocumentLinkType,
     FundingSource,
     InstallmentStatus,
     MilestoneKey,
@@ -47,7 +52,6 @@ class PaymentDto(CamelModel):
     paid_on: date
     amount: Money
     method: PaymentMethod
-    receipt_path: str | None = None
 
 
 class InstallmentDto(CamelModel):
@@ -61,6 +65,7 @@ class InstallmentDto(CamelModel):
     projected_amount: Money
     status: InstallmentStatus
     payment: PaymentDto | None = None
+    document_count: int = 0
 
 
 class ObligationDto(CamelModel):
@@ -98,6 +103,43 @@ class MilestoneDto(CamelModel):
 class MilestoneUpdateResult(CamelModel):
     milestone: MilestoneDto
     effects: list[str]
+
+
+class DocumentLink(CamelModel):
+    type: DocumentLinkType
+    id: str
+    label: str
+
+
+class DocumentDto(CamelModel):
+    id: str
+    title: str
+    category: DocumentCategory
+    document_date: date | None
+    valid_until: date | None
+    notes: str | None
+    original_name: str
+    mime_type: str
+    size_bytes: int
+    created_at: datetime
+    link: DocumentLink | None
+    expiry: DocumentExpiry | None
+
+
+class UploadInfo(CamelModel):
+    url: str
+    method: str
+    headers: dict[str, str]
+
+
+class DocumentCreated(CamelModel):
+    document: DocumentDto
+    upload: UploadInfo
+
+
+class DownloadUrlDto(CamelModel):
+    url: str
+    expires_at: datetime
 
 
 class TaskDto(CamelModel):
@@ -157,6 +199,7 @@ class DashboardDto(CamelModel):
     monthly: list[MonthlyDto]
     capacity: CapacityDto
     next_tasks: list[TaskDto]
+    expiring_documents: list[DocumentDto] = []
 
 
 # ---- inputs ------------------------------------------------------------------------------
@@ -166,7 +209,39 @@ class PaymentIn(CamelModel):
     paid_on: date
     amount: Decimal = Field(ge=0)
     method: PaymentMethod
-    receipt_path: str | None = None
+
+
+class DocumentIn(CamelModel):
+    title: str = Field(min_length=1, max_length=300)
+    category: DocumentCategory = DocumentCategory.OTHER
+    document_date: date | None = None
+    valid_until: date | None = None
+    notes: str | None = None
+    installment_id: str | None = None
+    obligation_id: str | None = None
+    task_id: str | None = None
+    milestone_key: MilestoneKey | None = None
+
+    @model_validator(mode="after")
+    def _single_link(self) -> DocumentIn:
+        links = [self.installment_id, self.obligation_id, self.task_id, self.milestone_key]
+        if sum(x is not None for x in links) > 1:
+            raise ValueError("a document can be linked to at most one item")
+        return self
+
+
+class DocumentCreateIn(DocumentIn):
+    original_name: str = Field(min_length=1, max_length=500)
+    mime_type: str
+    size_bytes: int = Field(ge=1, le=MAX_DOCUMENT_BYTES)
+
+    @field_validator("mime_type")
+    @classmethod
+    def _mime_allowed(cls, v: str) -> str:
+        v = v.split(";")[0].strip().lower()
+        if v not in ALLOWED_DOCUMENT_MIMES:
+            raise ValueError(f"mime type not allowed: {v}")
+        return v
 
 
 class ObligationIn(CamelModel):

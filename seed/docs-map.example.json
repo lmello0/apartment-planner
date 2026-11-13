@@ -1,0 +1,30 @@
+{
+  "files": {
+    "contrato-compra-venda.pdf": {
+      "title": "Contrato de compra e venda",
+      "category": "CONTRACT",
+      "documentDate": "2026-03-15"
+    },
+    "recibo-itbi.pdf": {
+      "title": "Recibo do ITBI",
+      "category": "PAYMENT_RECEIPT",
+      "documentDate": "2026-11-30",
+      "obligationName": "ITBI"
+    },
+    "certidao-negativa.pdf": {
+      "title": "Certidão negativa de débitos",
+      "category": "TAXES_FEES",
+      "validUntil": "2027-01-31",
+      "notes": "Renovar antes da assinatura"
+    },
+    "memorial/memorial-descritivo.pdf": {
+      "title": "Memorial descritivo",
+      "category": "PROJECT_SPEC"
+    },
+    "habite-se.jpg": {
+      "title": "Habite-se",
+      "category": "PROJECT_SPEC",
+      "milestoneKey": "HABITE_SE"
+    }
+  }
+}

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy.orm import Session
 
 from app.api import mappers as m
@@ -11,12 +11,14 @@ from app.api.deps import require_owner
 from app.db.session import get_session
 from app.domain import dashboard as dash
 from app.domain.types import InstallmentStatus, MilestoneKey
-from app.services import milestones, obligations, payments, tasks
+from app.services import documents, milestones, obligations, payments, tasks
 from app.services import settings_service as settings_svc
 from app.services.context import all_views, load_ctx
 from app.services.context import get_settings as get_settings_row
+from app.storage import LocalStorage, Storage, get_storage
 
 public = APIRouter(prefix="/api")
+dev_storage = APIRouter(prefix="/api/dev-storage")  # registered only when ENV != production
 router = APIRouter(prefix="/api", dependencies=[Depends(require_owner)])
 
 
@@ -37,8 +39,10 @@ def get_dashboard(session: Session = Depends(get_session)):
     data = dash.build([v for _, v in pairs], ctx.today, ctx.settings.monthly_capacity,
                       ctx.milestones.get(MilestoneKey.KEY_DELIVERY))
     next_ = dash.next_tasks(tasks.list_tasks(session, None, True))
+    expiring = [m.document_dto(session, d, ctx) for d in documents.expiring(
+        session, ctx.today, ctx.settings.due_soon_days)]
     session.commit()
-    return m.dashboard_dto(data, ctx, by_id, next_)
+    return m.dashboard_dto(data, ctx, by_id, next_, expiring)
 
 
 # ---- installments ------------------------------------------------------------------------
@@ -191,6 +195,102 @@ def toggle_task(task_id: str, session: Session = Depends(get_session)):
     return out
 
 
+# ---- documents ---------------------------------------------------------------------------
+
+
+@router.get("/documents", response_model=list[s.DocumentDto])
+def list_documents(
+    category: s.DocumentCategory | None = None,
+    q: str | None = None,
+    installment_id: str | None = Query(default=None, alias="installmentId"),
+    obligation_id: str | None = Query(default=None, alias="obligationId"),
+    task_id: str | None = Query(default=None, alias="taskId"),
+    milestone_key: MilestoneKey | None = Query(default=None, alias="milestoneKey"),
+    session: Session = Depends(get_session),
+):
+    ctx = load_ctx(session)
+    rows = documents.list_documents(
+        session, category=category.value if category else None, q=q,
+        installment_id=installment_id, obligation_id=obligation_id, task_id=task_id,
+        milestone_key=milestone_key.value if milestone_key else None)
+    out = [m.document_dto(session, d, ctx) for d in rows]
+    session.commit()
+    return out
+
+
+@router.post("/documents", response_model=s.DocumentCreated, status_code=201)
+def create_document(body: s.DocumentCreateIn, session: Session = Depends(get_session),
+                    storage: Storage = Depends(get_storage)):
+    doc, upload = documents.create(session, storage, body)
+    out = s.DocumentCreated(
+        document=m.document_dto(session, doc, load_ctx(session)),
+        upload=s.UploadInfo(url=upload.url, method=upload.method, headers=upload.headers))
+    session.commit()
+    return out
+
+
+@router.post("/documents/{document_id}/confirm", response_model=s.DocumentDto)
+def confirm_document(document_id: str, session: Session = Depends(get_session),
+                     storage: Storage = Depends(get_storage)):
+    doc = documents.confirm(session, storage, document_id)
+    out = m.document_dto(session, doc, load_ctx(session))
+    session.commit()
+    return out
+
+
+@router.put("/documents/{document_id}", response_model=s.DocumentDto)
+def update_document(document_id: str, body: s.DocumentIn, session: Session = Depends(get_session)):
+    doc = documents.update(session, document_id, body)
+    out = m.document_dto(session, doc, load_ctx(session))
+    session.commit()
+    return out
+
+
+@router.delete("/documents/{document_id}", status_code=204)
+def delete_document(document_id: str, session: Session = Depends(get_session),
+                    storage: Storage = Depends(get_storage)):
+    documents.delete(session, storage, document_id)
+    session.commit()
+    return Response(status_code=204)
+
+
+@router.get("/documents/{document_id}/download-url", response_model=s.DownloadUrlDto)
+def document_download_url(document_id: str, session: Session = Depends(get_session),
+                          storage: Storage = Depends(get_storage)):
+    url, expires_at = documents.download_url(storage, documents.get(session, document_id))
+    return s.DownloadUrlDto(url=url, expires_at=expires_at)
+
+
+# ---- dev storage (local disk; the router is not registered in production) ----------------
+
+
+def _local(storage: Storage) -> LocalStorage:
+    if not isinstance(storage, LocalStorage):
+        raise HTTPException(404, "local storage is not enabled")
+    return storage
+
+
+@dev_storage.put("/{token}", status_code=200)
+async def dev_upload(token: str, request: Request, storage: Storage = Depends(get_storage)):
+    local = _local(storage)
+    key = LocalStorage.parse_token(token, "u")
+    if key is None:
+        raise HTTPException(403, "invalid or expired token")
+    mime = request.headers.get("content-type", "application/octet-stream")
+    local.upload(key, await request.body(), mime.split(";")[0].strip().lower())
+    return {"ok": True}
+
+
+@dev_storage.get("/{token}")
+def dev_download(token: str, storage: Storage = Depends(get_storage)):
+    local = _local(storage)
+    key = LocalStorage.parse_token(token, "d")
+    info = local.head(key) if key else None
+    if key is None or info is None:
+        raise HTTPException(404, "not found")
+    return Response(content=local.read(key), media_type=info.mime_type)
+
+
 # ---- settings ----------------------------------------------------------------------------
 
 
@@ -208,4 +308,4 @@ def put_settings(body: s.SettingsIn, session: Session = Depends(get_session)):
     return out
 
 
-__all__ = ["public", "router"]
+__all__ = ["dev_storage", "public", "router"]

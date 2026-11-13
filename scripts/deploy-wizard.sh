@@ -205,18 +205,18 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 ROOT=$(pwd)
 ENV_FILE="$ROOT/.env.deploy"
 
-TOTAL_STAGES=10
+TOTAL_STAGES=11
 GCP_REGION_DEFAULT="southamerica-east1"
 RUN_SERVICE="apartment-planner-api"
 
 
-# Resume: FROM=8 scripts/deploy-wizard.sh skips stages 1-7 using values saved in .env.deploy.
+# Resume: FROM=9 scripts/deploy-wizard.sh skips stages 1-8 using values saved in .env.deploy.
 FROM="${FROM:-1}"
 want() { # want N "Name": run stage N, or count it as done when resuming past it
   if (( $1 < FROM )); then _STAGE_INDEX=$((_STAGE_INDEX + 1)); return 1; fi
   stage "$2"
 }
-for k in SUPABASE_URL SUPABASE_ANON_KEY DATABASE_URL OWNER_EMAIL PAGES_PROJECT PAGES_URL GCP_PROJECT_ID GCP_REGION API_URL; do
+for k in SUPABASE_URL SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY DATABASE_URL OWNER_EMAIL PAGES_PROJECT PAGES_URL GCP_PROJECT_ID GCP_REGION API_URL; do
   if v=$(_existing "$k"); then printf -v "$k" '%s' "$v"; fi
 done
 [[ -n "${SUPABASE_URL:-}" ]] && SB_REF=$(sed -E 's#https://([^.]+)\.supabase\.co.*#\1#' <<<"$SUPABASE_URL")
@@ -299,7 +299,7 @@ if want 5 "Banco: migrations + carga do seu contrato"; then
 say "Vou rodar 'alembic upgrade head' e 'import-seed' contra o Supabase."
 warn "import-seed APAGA e recarrega todos os dados do app (ok agora: banco novo)."
 if confirm "Rodar migrations e importar seed/apto-166.json no Supabase?"; then
-  ( cd backend && export ENV=production AUTH_DISABLED=false DATABASE_URL SUPABASE_URL OWNER_EMAIL \
+  ( cd backend && export AUTH_DISABLED=false DATABASE_URL SUPABASE_URL OWNER_EMAIL \
       && uv run alembic upgrade head \
       && uv run python -m app.cli import-seed ../seed/apto-166.json )
   step "Banco pronto."
@@ -366,7 +366,49 @@ pause
 fi
 
 # ── 9 ─────────────────────────────────────────────────────────────────────
-if want 9 "Cloud Run: deploy do backend"; then
+if want 9 "Supabase Storage: bucket privado de documentos e chave secreta"; then
+say "Os documentos (PDF/imagens) ficam num bucket PRIVADO; só o backend assina as URLs."
+open_url "https://supabase.com/dashboard/project/$SB_REF/settings/api-keys"
+step "Copie a chave SECRETA: 'Secret key' (sb_secret_…) ou, no modo legacy, 'service_role'."
+warn "Essa chave dá acesso total ao projeto: ela só vai para o Secret Manager do Cloud Run. Nunca no frontend."
+ask_secret SUPABASE_SERVICE_ROLE_KEY "Secret / service_role key:"
+write_env SUPABASE_SERVICE_ROLE_KEY "$SUPABASE_SERVICE_ROLE_KEY"
+
+BUCKET="documents"
+# Legacy keys (JWT, eyJ…) also go in Authorization; sb_secret_… keys only in apikey.
+SB_HDRS=(-H "apikey: $SUPABASE_SERVICE_ROLE_KEY")
+[[ "$SUPABASE_SERVICE_ROLE_KEY" == eyJ* ]] && SB_HDRS+=(-H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY")
+BUCKET_OPTS='"public":false,"file_size_limit":20971520,"allowed_mime_types":["application/pdf","image/jpeg","image/png","image/heic","image/heif","image/webp"]'
+code=$(curl -s -o /dev/null -w '%{http_code}' "${SB_HDRS[@]}" "$SUPABASE_URL/storage/v1/bucket/$BUCKET")
+if [[ "$code" == "200" ]]; then
+  say "Bucket '$BUCKET' já existe: atualizando limite (20 MB) e tipos permitidos."
+  code=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "${SB_HDRS[@]}" -H 'Content-Type: application/json' \
+    -d "{$BUCKET_OPTS}" "$SUPABASE_URL/storage/v1/bucket/$BUCKET")
+else
+  say "Criando o bucket privado '$BUCKET' (20 MB, PDF/JPEG/PNG/HEIC/WebP)."
+  code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${SB_HDRS[@]}" -H 'Content-Type: application/json' \
+    -d "{\"id\":\"$BUCKET\",\"name\":\"$BUCKET\",$BUCKET_OPTS}" "$SUPABASE_URL/storage/v1/bucket")
+fi
+if [[ "$code" == "200" ]]; then
+  step "Bucket '$BUCKET' pronto (privado)."
+else
+  warn "A API do Storage respondeu $code. Confira a chave e crie/ajuste o bucket '$BUCKET' em Storage no painel (privado, 20 MB)."
+  open_url "https://supabase.com/dashboard/project/$SB_REF/storage/buckets"
+  SKIPPED+=("bucket privado '$BUCKET' no Supabase Storage (20 MB; pdf, jpeg, png, heic, heif, webp)")
+fi
+say "A tabela de documentos precisa da migration nova (0002)."
+if confirm "Rodar 'alembic upgrade head' no Supabase agora (seguro repetir; não apaga dados)?"; then
+  ( cd backend && export ENV=production AUTH_DISABLED=false DATABASE_URL SUPABASE_URL OWNER_EMAIL \
+      SUPABASE_SERVICE_ROLE_KEY && uv run alembic upgrade head )
+  step "Migrations em dia."
+else
+  SKIPPED+=("migrations no Supabase (cd backend && uv run alembic upgrade head)")
+fi
+pause
+fi
+
+# ── 10 ────────────────────────────────────────────────────────────────────
+if want 10 "Cloud Run: deploy do backend"; then
 PROJECT_NUMBER=$(gcloud projects describe "$GCP_PROJECT_ID" --format='value(projectNumber)')
 RUN_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
 say "Guardando DATABASE_URL no Secret Manager (secret 'database-url')…"
@@ -377,6 +419,14 @@ else
 fi
 gcloud secrets add-iam-policy-binding database-url --project "$GCP_PROJECT_ID" \
   --member="serviceAccount:$RUN_SA" --role=roles/secretmanager.secretAccessor >/dev/null
+say "Guardando a chave secreta do Storage no Secret Manager (secret 'supabase-service-role-key')…"
+if gcloud secrets describe supabase-service-role-key --project "$GCP_PROJECT_ID" >/dev/null 2>&1; then
+  printf '%s' "$SUPABASE_SERVICE_ROLE_KEY" | gcloud secrets versions add supabase-service-role-key --data-file=- --project "$GCP_PROJECT_ID" >/dev/null
+else
+  printf '%s' "$SUPABASE_SERVICE_ROLE_KEY" | gcloud secrets create supabase-service-role-key --data-file=- --replication-policy=automatic --project "$GCP_PROJECT_ID" >/dev/null
+fi
+gcloud secrets add-iam-policy-binding supabase-service-role-key --project "$GCP_PROJECT_ID" \
+  --member="serviceAccount:$RUN_SA" --role=roles/secretmanager.secretAccessor >/dev/null
 gcloud projects add-iam-policy-binding "$GCP_PROJECT_ID" \
   --member="serviceAccount:$RUN_SA" --role=roles/run.builder --condition=None >/dev/null 2>&1 \
   || note "(não consegui conceder roles/run.builder; se o build falhar por permissão, conceda-o à $RUN_SA)"
@@ -384,8 +434,8 @@ step "Secret pronto."
 if confirm "Fazer o deploy de backend/ como '$RUN_SERVICE' em $GCP_REGION (público, validado por JWT)?"; then
   gcloud run deploy "$RUN_SERVICE" --source backend --region "$GCP_REGION" --project "$GCP_PROJECT_ID" \
     --allow-unauthenticated --max-instances 2 --memory 512Mi \
-    --set-env-vars "ENV=production,AUTH_DISABLED=false,SUPABASE_URL=$SUPABASE_URL,OWNER_EMAIL=$OWNER_EMAIL,CORS_ORIGINS=$PAGES_URL" \
-    --set-secrets "DATABASE_URL=database-url:latest" --quiet
+    --set-env-vars "ENV=production,AUTH_DISABLED=false,SUPABASE_URL=$SUPABASE_URL,OWNER_EMAIL=$OWNER_EMAIL,CORS_ORIGINS=$PAGES_URL,STORAGE_BACKEND=supabase,STORAGE_BUCKET=documents" \
+    --set-secrets "DATABASE_URL=database-url:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest" --quiet
   API_URL=$(gcloud run services describe "$RUN_SERVICE" --region "$GCP_REGION" --project "$GCP_PROJECT_ID" --format='value(status.url)')
   write_env API_URL "$API_URL"
   say "Health check:"
@@ -398,8 +448,8 @@ fi
 pause
 fi
 
-# ── 10 ────────────────────────────────────────────────────────────────────
-if want 10 "Cloudflare Pages: build e deploy do frontend"; then
+# ── 11 ────────────────────────────────────────────────────────────────────
+if want 11 "Cloudflare Pages: build e deploy do frontend"; then
 say "Gerando frontend/src/environments/environment.production.ts com valores públicos:"
 cat > frontend/src/environments/environment.production.ts <<EOF
 export const environment = {
@@ -423,6 +473,7 @@ note "  No celular: abra $PAGES_URL e use 'Adicionar à tela inicial'."
 pause "Tudo certo? Enter para finalizar"
 fi
 finish
+note "Documentos já existentes: STORAGE_BACKEND=supabase SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… DATABASE_URL=… uv run python -m app.cli import-docs ../apto-docs --map ../seed/docs-map.json --apply (em backend/)"
 note "Redeploy do backend: gcloud run deploy $RUN_SERVICE --source backend --region $GCP_REGION"
 note "Redeploy do frontend: cd frontend && npx ng build && npx wrangler pages deploy <dist> --project-name $PAGES_PROJECT --branch main"
 note "environment.production.ts mudou (só valores públicos): pode commitar."

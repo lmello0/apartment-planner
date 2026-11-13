@@ -9,7 +9,7 @@ API reference: [`../docs/api.md`](../docs/api.md).
 ```sh
 cd backend
 uv sync
-cp .env.example .env        # set DATABASE_URL, SUPABASE_URL, OWNER_EMAIL
+cp .env.example .env        # set DATABASE_URL, SUPABASE_URL, OWNER_EMAIL (+ SUPABASE_SERVICE_ROLE_KEY for STORAGE_BACKEND=supabase)
 ```
 Local Postgres example: `docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=apartment_planner postgres:16`.
 
@@ -21,6 +21,16 @@ AUTH_DISABLED=true uv run uvicorn app.main:app --reload       # http://localhost
 ```
 `seed/apto-166.json` is gitignored (financial values only); `seed/apto-166.example.json` shows the
 structure with fake values.
+
+## Documents
+Files live in object storage behind `app/storage` (`SupabaseStorage` for production, `LocalStorage` on disk for
+dev/tests; select with `STORAGE_BACKEND`, `ENV=production` requires `supabase`). The API only keeps metadata and
+signs URLs; the browser uploads/downloads directly. `/api/dev-storage/*` exists only when `ENV != production`.
+```sh
+uv run python -m app.cli import-docs ../apto-docs --map ../seed/docs-map.json          # dry run
+uv run python -m app.cli import-docs ../apto-docs --map ../seed/docs-map.json --apply  # upload
+uv run python -m app.cli cleanup-docs                                                  # drop stale PENDING uploads
+```
 
 ## Test and lint
 ```sh
