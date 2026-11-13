@@ -1,17 +1,20 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
+import { SelectButtonModule } from 'primeng/selectbutton';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { Router } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { moneyToNumber, numberToMoney } from '../../core/money';
 import { FeedbackService } from '../../shared/feedback.service';
+import { ThemePreference, ThemeService } from '../../core/theme.service';
 import { PageHeaderComponent } from '../../shared/page-header.component';
 
 @Component({
   selector: 'app-settings-page',
-  imports: [ReactiveFormsModule, ButtonModule, InputNumberModule, PageHeaderComponent],
+  imports: [ReactiveFormsModule, FormsModule, SelectButtonModule, ButtonModule, InputNumberModule, PageHeaderComponent],
   template: `
     <app-page-header title="Ajustes" subtitle="Capacidade mensal e estimativas de correção" [crumbs]="[{ label: 'Ajustes' }]" />
 
@@ -44,6 +47,13 @@ import { PageHeaderComponent } from '../../shared/page-header.component';
       </div>
     </form>
 
+    <section class="card theme" aria-labelledby="h-theme">
+      <h2 id="h-theme">Aparência</h2>
+      <p-selectbutton [options]="themeOptions" [ngModel]="theme.preference()" (ngModelChange)="theme.set($event)"
+        optionLabel="label" optionValue="value" [allowEmpty]="false" ariaLabelledBy="h-theme" />
+      <small class="muted">Vale só para este aparelho. "Sistema" acompanha o modo claro/escuro do seu dispositivo.</small>
+    </section>
+
     @if (!mock) {
       <section class="card account">
         <h2>Conta</h2>
@@ -55,7 +65,9 @@ import { PageHeaderComponent } from '../../shared/page-header.component';
     }
   `,
   styles: `
-    .account { margin-top: 1rem; }
+    .account, .theme { margin-top: 1.25rem; }
+    .theme { display: grid; gap: 0.6rem; justify-items: start; }
+    .theme h2 { margin-bottom: 0; }
     .demo { margin-top: 1rem; font-size: 0.875rem; }
   `,
 })
@@ -65,6 +77,12 @@ export class SettingsPage implements OnInit {
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
   protected readonly auth = inject(AuthService);
+  protected readonly theme = inject(ThemeService);
+  protected readonly themeOptions: { label: string; value: ThemePreference }[] = [
+    { label: 'Sistema', value: 'system' },
+    { label: 'Claro', value: 'light' },
+    { label: 'Escuro', value: 'dark' },
+  ];
   protected readonly mock = this.auth.bypass;
   protected readonly saving = signal(false);
 

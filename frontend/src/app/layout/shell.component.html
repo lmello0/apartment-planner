@@ -5,7 +5,7 @@
       <span class="brand__mark" aria-hidden="true">166</span>
       <span class="brand__text">Planejador<br />do Apê</span>
     </div>
-    <nav aria-label="Principal">
+    <nav aria-label="Principal" class="nav">
       @for (n of nav; track n.path) {
         <a [routerLink]="n.path" routerLinkActive="active" ariaCurrentWhenActive="page">
           <i class="pi" [class]="n.icon" aria-hidden="true"></i>
@@ -14,11 +14,24 @@
       }
     </nav>
     <div class="side__foot">
+      <a class="settings-link" [routerLink]="settings.path" routerLinkActive="active" ariaCurrentWhenActive="page">
+        <i class="pi" [class]="settings.icon" aria-hidden="true"></i>
+        <span>{{ settings.label }}</span>
+      </a>
       <span class="who">{{ auth.email() }}</span>
     </div>
   </aside>
+  <header class="topbar">
+    <span class="topbar__brand"><span class="brand__mark brand__mark--sm" aria-hidden="true">166</span> Planejador do Apê</span>
+    <a class="topbar__gear" [routerLink]="settings.path" routerLinkActive="active" ariaCurrentWhenActive="page" aria-label="Ajustes">
+      <i class="pi pi-cog" aria-hidden="true"></i>
+    </a>
+  </header>
   <main id="conteudo" class="content">
     <router-outlet />
   </main>
 </div>
 <app-payment-dialog />
+<app-document-upload-dialog />
+<app-document-edit-dialog />
+<app-item-documents-dialog />

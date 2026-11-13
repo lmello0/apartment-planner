@@ -1,4 +1,5 @@
 import { Component, inject } from '@angular/core';
+import { ThemeService } from './core/theme.service';
 import { MessageService } from 'primeng/api';
 import { RouterOutlet } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
@@ -39,6 +40,7 @@ import { ToastModule } from 'primeng/toast';
 })
 export class App {
   private readonly messages = inject(MessageService);
+  private readonly theme = inject(ThemeService); // applies data-theme and follows the system
 
   protected undo(message: { data: { undo: () => void } }): void {
     message.data.undo();

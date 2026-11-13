@@ -26,6 +26,10 @@
               @if (dl.text) { <p-tag [value]="dl.text" [severity]="dl.late ? 'danger' : 'warn'" [icon]="dl.late ? 'pi pi-exclamation-triangle' : 'pi pi-clock'" /> }
             }
             <span class="item__actions">
+              <p-button icon="pi pi-paperclip" size="small" severity="secondary" [text]="true"
+                [label]="docCount()[t.id] ? '' + docCount()[t.id] : undefined"
+                [ariaLabel]="(docCount()[t.id] || 0) + ' documento(s) de ' + t.title + '. Abrir ou anexar'"
+                (onClick)="docs.openItem({ type: 'TASK', id: t.id, label: t.title })" />
               <p-button icon="pi pi-pencil" size="small" severity="secondary" [text]="true" [ariaLabel]="'Editar ' + t.title" (onClick)="openEdit(t)" />
               <p-button icon="pi pi-trash" size="small" severity="danger" [text]="true" [ariaLabel]="'Excluir ' + t.title" (onClick)="confirmDelete(t)" />
             </span>

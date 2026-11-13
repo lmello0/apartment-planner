@@ -27,10 +27,15 @@ export class ActionsService {
     this.paying.set(null);
   }
 
-  pay(installment: InstallmentDto, input: PaymentInput, onDone?: () => void): void {
+  /**
+   * `keepOpen`: the dialog stays up after the payment is saved (it still has a receipt to upload);
+   * the caller closes it. `onPaid` runs right after the payment succeeded.
+   */
+  pay(installment: InstallmentDto, input: PaymentInput, onDone?: () => void, opts: { keepOpen?: boolean; onPaid?: () => void } = {}): void {
     this.api.payInstallment(installment.id, input).subscribe({
       next: () => {
-        this.closePayment();
+        if (!opts.keepOpen) this.closePayment();
+        opts.onPaid?.();
         this.changed$.next();
         this.feedback.undoable(
           'Pagamento registrado',

@@ -7,11 +7,13 @@ import { CheckboxModule } from 'primeng/checkbox';
 import { ChartModule } from 'primeng/chart';
 import { MessageModule } from 'primeng/message';
 import { ProgressBarModule } from 'primeng/progressbar';
+import { ThemeService } from '../../core/theme.service';
 import { ApiService } from '../../core/api.service';
 import { monthLabel } from '../../core/dates';
 import { DashboardDto, TaskDto } from '../../core/models';
 import { compareMoney, moneyRatio, moneyToNumber, toCents } from '../../core/money';
 import { ActionsService } from '../../shared/actions.service';
+import { DocumentListComponent } from '../../shared/document-list.component';
 import { InstallmentListComponent } from '../../shared/installment-list.component';
 import { PageHeaderComponent } from '../../shared/page-header.component';
 import { BrlPipe, DateBrPipe } from '../../shared/pipes';
@@ -21,7 +23,7 @@ import { PHASE_LABEL } from '../../core/labels';
   selector: 'app-dashboard-page',
   imports: [
     FormsModule, RouterLink, ButtonModule, CheckboxModule, ChartModule, MessageModule, ProgressBarModule,
-    InstallmentListComponent, PageHeaderComponent, BrlPipe, DateBrPipe,
+    InstallmentListComponent, DocumentListComponent, PageHeaderComponent, BrlPipe, DateBrPipe,
   ],
   templateUrl: './dashboard.page.html',
   styleUrl: './dashboard.page.scss',
@@ -30,6 +32,7 @@ export class DashboardPage implements OnInit {
   private readonly api = inject(ApiService);
   private readonly actions = inject(ActionsService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly theme = inject(ThemeService);
 
   protected readonly data = signal<DashboardDto | null>(null);
   protected readonly phase = PHASE_LABEL;
@@ -51,17 +54,20 @@ export class DashboardPage implements OnInit {
     return {
       labels: monthly.map((m) => monthLabel(m.month)),
       datasets: [
-        { label: 'Previsto', data: monthly.map((m) => moneyToNumber(m.expected)), backgroundColor: '#d9c9a0', borderRadius: 3 },
-        { label: 'Pago', data: monthly.map((m) => moneyToNumber(m.paid)), backgroundColor: '#1f5a47', borderRadius: 3 },
+        { label: 'Previsto', data: monthly.map((m) => moneyToNumber(m.expected)), backgroundColor: this.theme.dark() ? '#6b5d4a' : '#d8c6a6', borderRadius: 4 },
+        { label: 'Pago', data: monthly.map((m) => moneyToNumber(m.paid)), backgroundColor: this.theme.dark() ? '#b9c675' : '#4c5a1f', borderRadius: 4 },
       ],
     };
   });
 
-  protected readonly chartOptions = {
+  protected readonly chartOptions = computed(() => {
+    const text = this.theme.dark() ? '#b8ab97' : '#655848';
+    const grid = this.theme.dark() ? '#3d3329' : '#e2d5c1';
+    return {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { position: 'bottom' as const, labels: { usePointStyle: true, boxWidth: 8 } },
+      legend: { position: 'bottom' as const, labels: { usePointStyle: true, boxWidth: 8, color: text } },
       tooltip: {
         callbacks: {
           label: (ctx: { dataset: { label?: string }; parsed: { y: number | null } }) =>
@@ -70,13 +76,15 @@ export class DashboardPage implements OnInit {
       },
     },
     scales: {
-      x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } },
+      x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 12, color: text } },
       y: {
         beginAtZero: true,
-        ticks: { callback: (v: string | number) => `R$ ${Number(v) >= 1000 ? `${Number(v) / 1000} mil` : v}` },
+        grid: { color: grid },
+        ticks: { color: text, callback: (v: string | number) => `R$ ${Number(v) >= 1000 ? `${Number(v) / 1000} mil` : v}` },
       },
     },
   };
+  });
 
   ngOnInit(): void {
     this.load();

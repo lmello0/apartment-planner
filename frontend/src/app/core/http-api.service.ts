@@ -4,7 +4,7 @@ import { Observable, map } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { ApiService } from './api.service';
 import {
-  DashboardDto, InstallmentDto, InstallmentFilter, IsoDate, MilestoneDto, MilestoneKey,
+  DashboardDto, DocumentCreateInput, DocumentDto, DocumentFilter, DocumentInput, UploadInfo, InstallmentDto, InstallmentFilter, IsoDate, MilestoneDto, MilestoneKey,
   MilestoneUpdateResult, ObligationDetailDto, ObligationDto, ObligationInput, PaymentInput,
   SettingsDto, TaskDto, TaskFilter, TaskInput,
 } from './models';
@@ -82,6 +82,51 @@ export class HttpApiService extends ApiService {
   }
   toggleTask(id: string): Observable<TaskDto> {
     return this.http.post<TaskDto>(`${this.base}/tasks/${id}/toggle`, {});
+  }
+
+  documents(filter: DocumentFilter = {}): Observable<DocumentDto[]> {
+    let params = new HttpParams();
+    for (const [k, v] of Object.entries(filter)) if (v) params = params.set(k, v);
+    return this.http.get<DocumentDto[]>(`${this.base}/documents`, { params });
+  }
+  createDocument(input: DocumentCreateInput): Observable<{ document: DocumentDto; upload: UploadInfo }> {
+    return this.http.post<{ document: DocumentDto; upload: UploadInfo }>(`${this.base}/documents`, input);
+  }
+  /**
+   * Plain fetch on purpose: the signed URL (Supabase, or /api/dev-storage in dev) is its own credential,
+   * so no Bearer header and no HttpClient interceptors (they would also toast generic errors).
+   * XMLHttpRequest instead of fetch to get upload progress.
+   */
+  uploadDocumentFile(upload: UploadInfo, file: File, onProgress?: (fraction: number) => void): Observable<void> {
+    return new Observable<void>((subscriber) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open(upload.method, upload.url);
+      for (const [name, value] of Object.entries(upload.headers)) xhr.setRequestHeader(name, value);
+      xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total);
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          subscriber.next();
+          subscriber.complete();
+        } else {
+          subscriber.error(new Error(`Falha ao enviar o arquivo (${xhr.status}).`));
+        }
+      };
+      xhr.onerror = () => subscriber.error(new Error('Sem conexão com o armazenamento de arquivos.'));
+      xhr.send(file);
+      return () => xhr.abort();
+    });
+  }
+  confirmDocument(id: string): Observable<DocumentDto> {
+    return this.http.post<DocumentDto>(`${this.base}/documents/${id}/confirm`, {});
+  }
+  updateDocument(id: string, input: DocumentInput): Observable<DocumentDto> {
+    return this.http.put<DocumentDto>(`${this.base}/documents/${id}`, input);
+  }
+  deleteDocument(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/documents/${id}`);
+  }
+  documentDownloadUrl(id: string): Observable<{ url: string; expiresAt: string }> {
+    return this.http.get<{ url: string; expiresAt: string }>(`${this.base}/documents/${id}/download-url`);
   }
 
   settings(): Observable<SettingsDto> {

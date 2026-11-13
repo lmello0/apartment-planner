@@ -1,7 +1,13 @@
 # Shneiderman's 8 golden rules, by screen
 
 Acceptance criteria for every screen. Each line says how the rule is met **today**; "n/a" or a stated limit is called out rather than hidden.
-Verified by clicking through every screen in headless Chrome with `useMock=true` at 375px and 1280px (flow: pay from dashboard, Enter-to-confirm, Undo, row undo with confirm, obligation create/edit/delete, milestone edit with effects, task toggle/create/delete, settings, login).
+**Desktop-first**: the primary layout is ≥1280 px (sidebar + content up to 80rem); 375 px stays fully functional (bottom bar, single column, no horizontal scroll). Verified in headless Chrome with `useMock=true` at **1280 px and 375 px, in both the light and dark themes**, on every screen (Painel, Parcelas, Obrigações + formulário, Marcos, Tarefas, Documentos placeholder, Ajustes, Entrar); `scrollWidth == clientWidth` on all of them. Flow clicked through earlier: pay from dashboard, Enter-to-confirm, Undo, row undo with confirm, obligation create/edit/delete, milestone edit with effects, task toggle/create/delete, settings, login.
+
+## Navegação (what changed)
+- **Desktop (>860 px)**: fixed left sidebar with Painel, Parcelas, Obrigações, Marcos, Tarefas, Documentos; **Ajustes pinned at the bottom** of the sidebar (with the signed-in e-mail). The active item is filled and has `aria-current="page"`.
+- **Phone (≤860 px)**: bottom bar with the same six items; **Ajustes is a gear in the top header** (accessible name "Ajustes"). Touch targets ≥44 px.
+- New route `/documentos` (placeholder "Em breve"; the real page is a separate task).
+- Theme: follows the system; **Ajustes → Aparência** has Sistema/Claro/Escuro (SelectButton), saved per device in `localStorage` (`theme-preference`, wrapped in try/catch; never sent to the API). Contrast is AA for text in both themes (tokens in `styles.scss`, PrimeNG preset in `primeng-config.ts`); status is still colour + icon + text.
 
 Shared building blocks (apply to all screens): `app-page-header` (title + breadcrumb), `app-installment-list`, `app-status-tag`, `FeedbackService` toasts, one global payment dialog (`ActionsService`), `brl`/`dateBr` pipes.
 
@@ -95,10 +101,29 @@ Shared building blocks (apply to all screens): `app-page-header` (title + breadc
 7. Control: no automatic redirect in demo mode; in production an authenticated user is sent to the painel.
 8. Memory: n/a (single field).
 
+## Documentos (`/documentos`)
+1. **Consistency** — the same `app-document-list` (icon, title, category · dates, file name and size, expiry tag, Abrir / Editar / Excluir) is used on this page, the obligation detail, the item dialog (parcela, tarefa, marco) and the dashboard "Documentos vencendo" card; the upload, edit and item dialogs live in the shell like the payment dialog.
+2. **Shortcuts** — drop several files at once on the drop area (desktop), or "Escolher arquivos"; on phones the picker offers the camera and there is a "Tirar foto" button. Item screens have "Anexar documento", already linked to that item. Title is pre-filled from the file name; Enter submits the dialog. Dropping onto an installment row is deliberately **not** supported.
+3. **Feedback** — each file shows its own progress bar, "Enviado" or the reason it failed (type, 20 MB, API error); success toast "N documentos enviados". Expiry is colour + icon + text ("Vence em X dias" / "Vencido").
+4. **Closure** — the upload dialog closes by itself only when every file went up; otherwise it stays with the failed ones and "Tentar de novo".
+5. **Error handling** — type and size are checked in the browser before anything is sent; the API's own 422 is shown on the file; the list has an error state with "Tentar de novo"; the empty state tells what to do and a filter with no match says how to clear it.
+6. **Reversal** — edit is always available (metadata and link). Delete removes the stored file, so it asks first and says it cannot be undone.
+7. **Control** — nothing is uploaded until "Enviar"; files can be dropped from the list before sending; the dialog cannot be dismissed mid-upload so a file is never half-sent. Search and category filter are explicit controls with a count of what is shown.
+8. **Memory** — "Abrir" uses a short-lived signed URL in a new tab (no stale links); filter and count stay visible while typing; "válido até" is in the row even when the tag is not shown.
+
+## Anexo no pagamento (diálogo "Registrar pagamento")
+- **Optional "Anexar comprovante"**: drop area or picker (one file). Choosing a file never blocks paying; a wrong type or a file over 20 MB is refused with a message and the payment can proceed without it.
+- **Order**: the payment is saved first, then the file goes up as a `PAYMENT_RECEIPT` linked to the installment (title "Comprovante · obrigação n/m", document date = payment date). While it uploads the dialog stays open with progress; on success it closes with a "Comprovante anexado" toast.
+- **Failure is recoverable and honest**: "Pagamento registrado" stays visible, the error is shown, and the person can retry or close and attach later from the clip on the installment row. Undoing the payment keeps the receipt.
+- **Installment list**: a clip with the count opens the documents of that installment; a paid installment with none shows a quiet "sem comprovante" (also clickable to attach); an unpaid one shows a faint clip to attach a boleto.
+
 ## Fixes made while verifying
 - Enter inside the amount field did not submit (`p-inputnumber` swallows it): the dialog now confirms from the form.
 - `aria-label` on `p-button` landed on the host, so icon buttons had no accessible name: now bound with `[ariaLabel]`.
-- Toasts covered primary actions (bottom of the phone, top-right of desktop) and the empty toast container blocked clicks: toasts are bottom-left (beside the sidebar) on desktop and top on phones, and the container ignores the pointer.
+- Toasts covered primary actions (bottom of the phone, top-right of desktop) and the empty toast container blocked clicks: toasts are bottom-left (beside the 16.5rem sidebar) on desktop and top on phones, and the container ignores the pointer.
 - On phones a paid installment with a contract difference squeezed the name into one letter per line.
 - Selects/inputs in the obligation form had inconsistent heights (missing `fluid`).
 - `/entrar` redirected away in demo mode, hiding the login screen.
+- Restyle ("casa nova"): the five dashboard KPIs became one ledger strip; headings use Fraunces, numbers IBM Plex Sans with tabular figures; chart colours follow the active theme.
+- Quiet (secondary) buttons, tags and error messages were low-contrast in dark mode: they now read from the app tokens.
+- Documents: the success/info/error toasts and the capacity alert text were low-contrast in the light theme; they now use stronger tokens (AA).

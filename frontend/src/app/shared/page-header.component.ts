@@ -34,12 +34,13 @@ export interface Crumb {
     </header>
   `,
   styles: `
-    .page-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 0.75rem 1rem; margin-bottom: 1.25rem; }
+    .page-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 0.75rem 1rem; margin-bottom: 1.75rem; }
     .crumbs { display: flex; gap: 0.4rem; font-size: 0.8125rem; color: var(--muted); margin-bottom: 0.2rem; }
     .crumbs a { color: var(--muted); }
     .crumbs a:hover { color: var(--accent); }
-    h1 { margin: 0; font-size: 1.5rem; font-weight: 600; letter-spacing: -0.01em; }
-    .page-header__sub { margin: 0.25rem 0 0; color: var(--muted); font-size: 0.9375rem; }
+    h1 { margin: 0; font-size: 2rem; line-height: 1.15; font-weight: 600; letter-spacing: -0.02em; }
+    @media (max-width: 640px) { h1 { font-size: 1.6rem; } }
+    .page-header__sub { margin: 0.25rem 0 0; color: var(--muted); font-size: 1rem; }
     .page-header__actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
   `,
 })

@@ -52,7 +52,7 @@ import { StatusTagComponent } from '../../shared/status-tag.component';
     .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem; }
     .item { display: grid; gap: 0.4rem; }
     .item__head { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
-    .item__name { font-size: 1.0625rem; font-weight: 600; color: var(--ink); text-decoration: none; }
+    .item__name { font-family: var(--font-display); font-size: 1.2rem; font-weight: 600; color: var(--ink); text-decoration: none; }
     .item__name:hover { color: var(--accent); text-decoration: underline; }
     .item__meta { margin: 0; font-size: 0.875rem; }
     :host ::ng-deep .item__bar { height: 0.4rem; margin-top: 0.2rem; }

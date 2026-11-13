@@ -41,6 +41,13 @@
     </section>
   }
 
+  @if (d.expiringDocuments.length) {
+    <section class="card card--docs" aria-labelledby="h-expiring">
+      <h2 id="h-expiring">Documentos vencendo <a routerLink="/documentos" class="link-sm">ver todos</a></h2>
+      <app-document-list [items]="d.expiringDocuments" />
+    </section>
+  }
+
   <div class="grid">
     <section class="card grid__wide" aria-labelledby="h-upcoming">
       <h2 id="h-upcoming">Próximos vencimentos <span class="muted">30 dias</span></h2>
@@ -88,7 +95,7 @@
     <section class="card grid__full" aria-labelledby="h-monthly">
       <h2 id="h-monthly">Desembolso mensal até as chaves <span class="muted">previsto × pago</span></h2>
       <div class="chart">
-        <p-chart type="bar" [data]="chartData()" [options]="chartOptions" height="100%" width="100%" />
+        <p-chart type="bar" [data]="chartData()" [options]="chartOptions()" height="100%" width="100%" />
       </div>
     </section>
 

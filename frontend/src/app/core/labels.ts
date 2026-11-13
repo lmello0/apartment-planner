@@ -1,5 +1,5 @@
 import {
-  FundingSource, InstallmentStatus, MilestoneKey, ObligationCategory, ObligationStatus,
+  DocumentCategory, DocumentExpiry, FundingSource, InstallmentStatus, MilestoneKey, ObligationCategory, ObligationStatus,
   PaymentMethod, Periodicity, TaskPhase, CorrectionIndex,
 } from './models';
 
@@ -77,6 +77,30 @@ export const MILESTONE_HELP: Record<MilestoneKey, string> = {
   INSPECTION_CALL: 'Cria a tarefa de vistoria em 7 dias, inicia condomínio e IPTU e agenda a assistência técnica.',
   KEY_DELIVERY: 'Re-ancora a parcela das chaves e o financiamento; parcelas pagas não mudam.',
 };
+
+export const DOCUMENT_CATEGORY_LABEL: Record<DocumentCategory, string> = {
+  PAYMENT_RECEIPT: 'Comprovante de pagamento',
+  CONTRACT: 'Contrato',
+  PERSONAL_ID: 'Documento pessoal',
+  INCOME_FGTS_TAX: 'Renda/FGTS/IR',
+  FINANCING: 'Financiamento/Caixa',
+  TAXES_FEES: 'Impostos e taxas',
+  PROJECT_SPEC: 'Projeto/Memorial',
+  OTHER: 'Outros',
+};
+
+export const DOCUMENT_EXPIRY: Record<DocumentExpiry, { label: string; severity: Severity; icon: string }> = {
+  VALID: { label: 'Em dia', severity: 'success', icon: 'pi pi-check' },
+  DUE_SOON: { label: 'Vence em breve', severity: 'warn', icon: 'pi pi-bell' },
+  EXPIRED: { label: 'Vencido', severity: 'danger', icon: 'pi pi-exclamation-triangle' },
+};
+
+export const DOCUMENT_LINK_LABEL = {
+  INSTALLMENT: 'Parcela',
+  OBLIGATION: 'Obrigação',
+  TASK: 'Tarefa',
+  MILESTONE: 'Marco',
+} as const;
 
 export const enumOptions = <T extends string>(map: Record<T, string | { label: string }>) =>
   (Object.keys(map) as T[]).map((value) => {

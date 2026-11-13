@@ -41,7 +41,6 @@ export interface PaymentDto {
   paidOn: IsoDate;
   amount: Money;
   method: PaymentMethod;
-  receiptPath: string | null;
 }
 
 export interface InstallmentDto {
@@ -55,6 +54,8 @@ export interface InstallmentDto {
   projectedAmount: Money;
   status: InstallmentStatus;
   payment: PaymentDto | null;
+  /** Active documents linked to this installment (receipts, boletos…). */
+  documentCount: number;
 }
 
 export interface ObligationDto {
@@ -165,4 +166,77 @@ export interface DashboardDto {
   monthly: { month: string; expected: Money; paid: Money }[];
   capacity: { monthlyCapacity: Money; currentMonthCommitment: Money; exceeded: boolean };
   nextTasks: TaskDto[];
+  /** Documents already expired or about to (validUntil ascending). */
+  expiringDocuments: DocumentDto[];
 }
+
+export type DocumentCategory =
+  | 'PAYMENT_RECEIPT'
+  | 'CONTRACT'
+  | 'PERSONAL_ID'
+  | 'INCOME_FGTS_TAX'
+  | 'FINANCING'
+  | 'TAXES_FEES'
+  | 'PROJECT_SPEC'
+  | 'OTHER';
+export type DocumentExpiry = 'VALID' | 'DUE_SOON' | 'EXPIRED';
+export type DocumentLinkType = 'INSTALLMENT' | 'OBLIGATION' | 'TASK' | 'MILESTONE';
+
+export interface DocumentLink {
+  type: DocumentLinkType;
+  /** Installment/obligation/task id, or the MilestoneKey. */
+  id: string;
+  label: string;
+}
+
+export interface DocumentDto {
+  id: string;
+  title: string;
+  category: DocumentCategory;
+  documentDate: IsoDate | null;
+  validUntil: IsoDate | null;
+  notes: string | null;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: string;
+  link: DocumentLink | null;
+  expiry: DocumentExpiry | null;
+}
+
+/** Body of PUT /api/documents/{id} (replaces everything, including the link). At most one link field. */
+export interface DocumentInput {
+  title: string;
+  category: DocumentCategory;
+  documentDate?: IsoDate | null;
+  validUntil?: IsoDate | null;
+  notes?: string | null;
+  installmentId?: string | null;
+  obligationId?: string | null;
+  taskId?: string | null;
+  milestoneKey?: MilestoneKey | null;
+}
+
+/** Body of POST /api/documents: the metadata plus what the browser knows about the file. */
+export type DocumentCreateInput = DocumentInput & { originalName: string; mimeType: string; sizeBytes: number };
+
+export interface UploadInfo {
+  url: string;
+  method: string;
+  headers: Record<string, string>;
+}
+
+export interface DocumentFilter {
+  category?: DocumentCategory;
+  q?: string;
+  installmentId?: string;
+  obligationId?: string;
+  taskId?: string;
+  milestoneKey?: MilestoneKey;
+}
+
+/** Limits enforced by the API (POST /documents and confirm). */
+export const DOCUMENT_MAX_BYTES = 20 * 1024 * 1024;
+export const DOCUMENT_MIME_TYPES = [
+  'application/pdf', 'image/jpeg', 'image/png', 'image/heic', 'image/heif', 'image/webp',
+];

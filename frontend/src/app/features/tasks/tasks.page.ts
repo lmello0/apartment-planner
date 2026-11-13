@@ -15,6 +15,7 @@ import { ApiService } from '../../core/api.service';
 import { diffDays, isoToPicker, localTodayIso, pickerToIso } from '../../core/dates';
 import { PHASE_LABEL, PHASE_ORDER, enumOptions } from '../../core/labels';
 import { TaskDto, TaskInput, TaskPhase } from '../../core/models';
+import { DocumentsService } from '../../shared/documents.service';
 import { ActionsService } from '../../shared/actions.service';
 import { FeedbackService } from '../../shared/feedback.service';
 import { PageHeaderComponent } from '../../shared/page-header.component';
@@ -37,6 +38,7 @@ export class TasksPage implements OnInit {
   private readonly feedback = inject(FeedbackService);
   private readonly confirm = inject(ConfirmationService);
   private readonly fb = inject(FormBuilder);
+  protected readonly docs = inject(DocumentsService);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly phaseLabel = PHASE_LABEL;
@@ -52,6 +54,7 @@ export class TasksPage implements OnInit {
   protected readonly dialogOpen = signal(false);
   protected readonly editingId = signal<string | null>(null);
   protected readonly saving = signal(false);
+  protected readonly docCount = signal<Record<string, number>>({});
 
   protected readonly groups = computed(() => {
     const all = this.tasks() ?? [];
@@ -142,5 +145,13 @@ export class TasksPage implements OnInit {
 
   private load(): void {
     this.api.tasks().subscribe((t) => this.tasks.set(t));
+    this.api.documents().subscribe({
+      next: (list) => {
+        const counts: Record<string, number> = {};
+        for (const d of list) if (d.link?.type === 'TASK') counts[d.link.id] = (counts[d.link.id] ?? 0) + 1;
+        this.docCount.set(counts);
+      },
+      error: () => this.docCount.set({}),
+    });
   }
 }

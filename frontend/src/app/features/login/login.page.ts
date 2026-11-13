@@ -35,10 +35,10 @@ import { AuthService } from '../../core/auth.service';
     </main>
   `,
   styles: `
-    .login { min-height: 100vh; display: grid; place-items: center; padding: 1rem; }
-    .login__card { width: min(26rem, 100%); display: grid; gap: 1rem; padding: 1.75rem; }
-    h1 { margin: 0; font-size: 1.4rem; }
-    .mark { display: grid; place-items: center; width: 3rem; height: 3rem; border-radius: 0.6rem; background: var(--ink); color: #e8dcc0; font-weight: 600; }
+    .login { min-height: 100vh; display: grid; place-items: center; padding: 1rem; background: radial-gradient(60rem 30rem at 15% 0%, var(--accent-soft), transparent 70%), var(--bg); }
+    .login__card { width: min(26rem, 100%); display: grid; gap: 1rem; padding: 2rem; }
+    h1 { margin: 0; font-size: 1.75rem; letter-spacing: -0.02em; }
+    .mark { display: grid; place-items: center; width: 3.25rem; height: 3.25rem; border-radius: 0.9rem 0.9rem 0.9rem 0.2rem; background: var(--accent); color: var(--on-accent); font-family: var(--font-display); font-weight: 600; font-size: 1.1rem; }
     p { margin: 0; }
     :host ::ng-deep .w-full { width: 100%; }
   `,

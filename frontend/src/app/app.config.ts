@@ -27,7 +27,7 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(withInterceptors([authInterceptor, errorInterceptor])),
     provideAnimationsAsync(),
     providePrimeNG({
-      theme: { preset: AppPreset, options: { darkModeSelector: '.app-dark', cssLayer: false } },
+      theme: { preset: AppPreset, options: { darkModeSelector: '[data-theme="dark"]', cssLayer: false } },
       translation: PT_BR,
     }),
     { provide: LOCALE_ID, useValue: 'pt-BR' },

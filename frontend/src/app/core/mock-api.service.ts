@@ -3,7 +3,8 @@ import { Observable, delay, of, throwError } from 'rxjs';
 import { ApiService } from './api.service';
 import { addDays, addMonths, diffDays, localTodayIso, monthKey, nextMonthKey } from './dates';
 import {
-  DashboardDto, InstallmentDto, InstallmentFilter, InstallmentStatus, IsoDate, MilestoneDto,
+  DOCUMENT_MAX_BYTES, DOCUMENT_MIME_TYPES, DashboardDto, DocumentCreateInput, DocumentDto, DocumentExpiry,
+  DocumentFilter, DocumentInput, DocumentLink, UploadInfo, InstallmentDto, InstallmentFilter, InstallmentStatus, IsoDate, MilestoneDto,
   MilestoneKey, MilestoneUpdateResult, Money, ObligationDetailDto, ObligationDto, ObligationInput,
   PaymentDto, PaymentInput, SettingsDto, TaskDto, TaskFilter, TaskInput,
 } from './models';
@@ -20,6 +21,15 @@ interface InstallmentRecord {
   payment: PaymentDto | null;
 }
 
+interface DocumentRecord {
+  doc: Omit<DocumentDto, 'link' | 'expiry'>;
+  /** At most one link (the API has a CHECK for it). */
+  link: { type: DocumentLink['type']; id: string } | null;
+  status: 'PENDING' | 'ACTIVE';
+  /** Files live in memory (Blob) only; object URLs serve "open". */
+  blob: Blob | null;
+}
+
 const BASE_MONTH = '2026-08';
 
 /** In-memory implementation of the API contract with realistic data for the Aura Humaitá 166 purchase. */
@@ -34,6 +44,7 @@ export class MockApiService extends ApiService {
   private installmentsByObligation = new Map<string, InstallmentRecord[]>();
   private milestoneList: MilestoneDto[] = [];
   private taskList: TaskDto[] = [];
+  private documentRecords = new Map<string, DocumentRecord>();
   private settingsValue: SettingsDto = {
     monthlyCapacity: '6000.00',
     inccMonthlyEstimate: '0.50',
@@ -113,6 +124,9 @@ export class MockApiService extends ApiService {
           exceeded: compareMoney(commitment, this.settingsValue.monthlyCapacity) > 0,
         },
         nextTasks: this.sortedOpenTasks().slice(0, 5),
+        expiringDocuments: this.activeDocuments()
+          .filter((d) => d.expiry === 'EXPIRED' || d.expiry === 'DUE_SOON')
+          .sort((a, b) => a.validUntil!.localeCompare(b.validUntil!)),
       };
     });
   }
@@ -136,7 +150,7 @@ export class MockApiService extends ApiService {
     return this.respond(() => {
       const rec = this.findRecord(id);
       if (rec.payment) throw new Error('Parcela já paga');
-      rec.payment = { ...input, receiptPath: null };
+      rec.payment = { ...input };
       return this.toDto(rec);
     });
   }
@@ -250,6 +264,94 @@ export class MockApiService extends ApiService {
     });
   }
 
+  // ---------------------------------------------------------------- documents
+  documents(filter: DocumentFilter = {}): Observable<DocumentDto[]> {
+    return this.respond(() => {
+      const q = filter.q?.trim().toLowerCase();
+      return this.activeDocuments()
+        .filter((d) => !filter.category || d.category === filter.category)
+        .filter((d) => !q || [d.title, d.originalName, d.notes ?? ''].some((t) => t.toLowerCase().includes(q)))
+        .filter((d) => !filter.installmentId || (d.link?.type === 'INSTALLMENT' && d.link.id === filter.installmentId))
+        .filter((d) => !filter.obligationId || (d.link?.type === 'OBLIGATION' && d.link.id === filter.obligationId))
+        .filter((d) => !filter.taskId || (d.link?.type === 'TASK' && d.link.id === filter.taskId))
+        .filter((d) => !filter.milestoneKey || (d.link?.type === 'MILESTONE' && d.link.id === filter.milestoneKey));
+    });
+  }
+
+  createDocument(input: DocumentCreateInput): Observable<{ document: DocumentDto; upload: UploadInfo }> {
+    return this.respond(() => {
+      if (!DOCUMENT_MIME_TYPES.includes(input.mimeType)) throw new Error('Tipo de arquivo não permitido. Use PDF ou imagem.');
+      if (input.sizeBytes < 1 || input.sizeBytes > DOCUMENT_MAX_BYTES) throw new Error('O arquivo deve ter até 20 MB.');
+      const link = this.linkFromInput(input);
+      const id = `doc-${++this.seq}`;
+      const rec: DocumentRecord = {
+        doc: {
+          id, title: input.title, category: input.category, documentDate: input.documentDate ?? null,
+          validUntil: input.validUntil ?? null, notes: input.notes ?? null, originalName: input.originalName,
+          mimeType: input.mimeType, sizeBytes: input.sizeBytes, createdAt: new Date().toISOString(),
+        },
+        link, status: 'PENDING', blob: null,
+      };
+      this.documentRecords.set(id, rec);
+      return {
+        document: this.documentDto(rec),
+        upload: { url: `mock://upload/${id}`, method: 'PUT', headers: { 'Content-Type': input.mimeType } },
+      };
+    });
+  }
+
+  uploadDocumentFile(upload: UploadInfo, file: File, onProgress?: (fraction: number) => void): Observable<void> {
+    return this.respond(() => {
+      const rec = this.documentRecords.get(upload.url.replace('mock://upload/', ''));
+      if (!rec) throw new Error('Envio expirado. Tente novamente.');
+      rec.blob = file;
+      onProgress?.(1);
+    });
+  }
+
+  confirmDocument(id: string): Observable<DocumentDto> {
+    return this.respond(() => {
+      const rec = this.findDocument(id);
+      if (rec.status === 'ACTIVE') return this.documentDto(rec);
+      const problem = !rec.blob ? 'O arquivo não chegou ao armazenamento.'
+        : rec.blob.size > DOCUMENT_MAX_BYTES ? 'O arquivo deve ter até 20 MB.' : null;
+      if (problem) {
+        this.documentRecords.delete(id); // like the API: a failed confirm drops the row and the object
+        throw new Error(problem);
+      }
+      rec.status = 'ACTIVE';
+      return this.documentDto(rec);
+    });
+  }
+
+  updateDocument(id: string, input: DocumentInput): Observable<DocumentDto> {
+    return this.respond(() => {
+      const rec = this.findDocument(id);
+      const link = this.linkFromInput(input);
+      Object.assign(rec.doc, {
+        title: input.title, category: input.category, documentDate: input.documentDate ?? null,
+        validUntil: input.validUntil ?? null, notes: input.notes ?? null,
+      });
+      rec.link = link;
+      return this.documentDto(rec);
+    });
+  }
+
+  deleteDocument(id: string): Observable<void> {
+    return this.respond(() => {
+      this.findDocument(id);
+      this.documentRecords.delete(id);
+    });
+  }
+
+  documentDownloadUrl(id: string): Observable<{ url: string; expiresAt: string }> {
+    return this.respond(() => {
+      const rec = this.findDocument(id);
+      const url = rec.blob ? URL.createObjectURL(rec.blob) : '';
+      return { url, expiresAt: new Date(Date.now() + 5 * 60_000).toISOString() };
+    });
+  }
+
   // ----------------------------------------------------------------- settings
   settings(): Observable<SettingsDto> {
     return this.respond(() => ({ ...this.settingsValue }));
@@ -282,6 +384,63 @@ export class MockApiService extends ApiService {
     throw new Error('Parcela não encontrada');
   }
 
+  private findDocument(id: string): DocumentRecord {
+    const r = this.documentRecords.get(id);
+    if (!r) throw new Error('Documento não encontrado');
+    return r;
+  }
+
+  private linkFromInput(i: DocumentInput): DocumentRecord['link'] {
+    type Link = NonNullable<DocumentRecord['link']>;
+    const given: Link[] = [];
+    if (i.installmentId) given.push({ type: 'INSTALLMENT', id: i.installmentId });
+    if (i.obligationId) given.push({ type: 'OBLIGATION', id: i.obligationId });
+    if (i.taskId) given.push({ type: 'TASK', id: i.taskId });
+    if (i.milestoneKey) given.push({ type: 'MILESTONE', id: i.milestoneKey });
+    if (given.length > 1) throw new Error('Um documento pode ficar ligado a apenas um item.');
+    const link = given[0] ?? null;
+    if (link && !this.linkLabel(link)) throw new Error('Item ligado não encontrado.');
+    return link;
+  }
+
+  /** Label of the linked item, or null when it no longer exists (the API sets the FK to NULL). */
+  private linkLabel(link: NonNullable<DocumentRecord['link']>): string | null {
+    switch (link.type) {
+      case 'INSTALLMENT': {
+        const r = [...this.installmentsByObligation.values()].flat().find((x) => x.id === link.id);
+        return r ? `${this.obligationsById.get(r.obligationId)!.name} ${r.seq}/${r.count}` : null;
+      }
+      case 'OBLIGATION': return this.obligationsById.get(link.id)?.name ?? null;
+      case 'TASK': return this.taskList.find((t) => t.id === link.id)?.title ?? null;
+      case 'MILESTONE': return this.milestoneList.find((m) => m.key === link.id)?.label ?? null;
+    }
+  }
+
+  private documentDto(r: DocumentRecord): DocumentDto {
+    const label = r.link ? this.linkLabel(r.link) : null;
+    const link = r.link && label ? { ...r.link, label } : null;
+    return { ...r.doc, link, expiry: this.expiry(r.doc.validUntil) };
+  }
+
+  private expiry(validUntil: IsoDate | null): DocumentExpiry | null {
+    if (!validUntil) return null;
+    const today = this.clock();
+    if (validUntil < today) return 'EXPIRED';
+    return diffDays(today, validUntil) <= this.settingsValue.dueSoonDays ? 'DUE_SOON' : 'VALID';
+  }
+
+  /** ACTIVE documents, newest first; links to deleted items read as null (ON DELETE SET NULL). */
+  private activeDocuments(): DocumentDto[] {
+    return [...this.documentRecords.values()]
+      .filter((r) => r.status === 'ACTIVE')
+      .map((r) => this.documentDto(r))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
+  }
+
+  private documentCount(installmentId: string): number {
+    return this.activeDocuments().filter((d) => d.link?.type === 'INSTALLMENT' && d.link.id === installmentId).length;
+  }
+
   private findTask(id: string): TaskDto {
     const t = this.taskList.find((x) => x.id === id);
     if (!t) throw new Error('Tarefa não encontrada');
@@ -310,6 +469,7 @@ export class MockApiService extends ApiService {
       projectedAmount: r.payment ? r.payment.amount : this.project(o, r),
       status,
       payment: r.payment ? { ...r.payment } : null,
+      documentCount: this.documentCount(r.id),
     };
   }
 
@@ -504,13 +664,27 @@ export class MockApiService extends ApiService {
     }, 'ob-avaliacao');
 
     const pay = (id: string, paidOn: IsoDate, amount: Money, method: PaymentDto['method']) => {
-      this.findRecord(id).payment = { paidOn, amount, method, receiptPath: null };
+      this.findRecord(id).payment = { paidOn, amount, method };
     };
     pay('ob-corretagem-1', '2026-08-15', '2548.00', 'PIX');
     pay('ob-corretagem-2', '2026-09-15', '2548.00', 'PIX');
     pay('ob-corretagem-3', '2026-10-15', '2548.00', 'PIX');
     pay('ob-documentista-1', '2026-08-25', '1500.00', 'PIX');
     pay('ob-avaliacao-1', '2026-08-12', '1600.00', 'DEBIT');
+
+    const pdf = (text: string) => new Blob([`%PDF-1.4\n% ${text}\n`], { type: 'application/pdf' });
+    const addDoc = (id: string, doc: Partial<DocumentRecord['doc']> & Pick<DocumentRecord['doc'], 'title' | 'category' | 'originalName'>, link: DocumentRecord['link']) => {
+      const blob = pdf(doc.title);
+      this.documentRecords.set(id, {
+        doc: { documentDate: null, validUntil: null, notes: null, mimeType: 'application/pdf', sizeBytes: blob.size, createdAt: '2026-10-20T12:00:00.000Z', ...doc, id },
+        link, status: 'ACTIVE', blob,
+      });
+    };
+    addDoc('doc-1', { title: 'Comprovante corretagem 1/6', category: 'PAYMENT_RECEIPT', originalName: 'corretagem-1.pdf', documentDate: '2026-08-15' },
+      { type: 'INSTALLMENT', id: 'ob-corretagem-1' });
+    addDoc('doc-2', { title: 'Contrato de compra e venda', category: 'CONTRACT', originalName: 'contrato.pdf', documentDate: '2026-08-05', createdAt: '2026-10-21T12:00:00.000Z' },
+      { type: 'OBLIGATION', id: 'ob-anuais' });
+    addDoc('doc-3', { title: 'Certidão de estado civil', category: 'PERSONAL_ID', originalName: 'certidao.pdf', validUntil: '2026-11-18', createdAt: '2026-10-22T12:00:00.000Z' }, null);
 
     const t = (id: string, phase: TaskDto['phase'], title: string, dueDate: IsoDate | null, doneAt: IsoDate | null = null, source: TaskDto['source'] = 'TEMPLATE', notes: string | null = null): TaskDto => ({
       id, phase, title, dueDate, doneAt, notes, obligationId: null, installmentId: null, source,

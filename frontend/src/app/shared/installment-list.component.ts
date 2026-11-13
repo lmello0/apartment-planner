@@ -5,6 +5,7 @@ import { InstallmentDto } from '../core/models';
 import { compareMoney } from '../core/money';
 import { diffDays, localTodayIso } from '../core/dates';
 import { ActionsService } from './actions.service';
+import { DocumentsService } from './documents.service';
 import { BrlPipe, DateBrPipe } from './pipes';
 import { StatusTagComponent } from './status-tag.component';
 
@@ -45,7 +46,25 @@ import { StatusTagComponent } from './status-tag.component';
                 }
               }
             </div>
-            <div class="row__status"><app-status-tag [installment]="i.status" /></div>
+            <div class="row__status">
+              <app-status-tag [installment]="i.status" />
+              @if (i.documentCount > 0) {
+                <button type="button" class="clip" (click)="openDocs(i)"
+                  [attr.aria-label]="i.documentCount + ' documento(s) anexado(s) a ' + i.obligationName + ' ' + i.seq + '/' + i.count + '. Abrir'">
+                  <i class="pi pi-paperclip" aria-hidden="true"></i> {{ i.documentCount }}
+                </button>
+              } @else if (i.status === 'PAID') {
+                <button type="button" class="clip clip--missing" (click)="openDocs(i)"
+                  [attr.aria-label]="'Sem comprovante em ' + i.obligationName + ' ' + i.seq + '/' + i.count + '. Anexar'">
+                  sem comprovante
+                </button>
+              } @else {
+                <button type="button" class="clip clip--add" (click)="openDocs(i)"
+                  [attr.aria-label]="'Anexar documento a ' + i.obligationName + ' ' + i.seq + '/' + i.count">
+                  <i class="pi pi-paperclip" aria-hidden="true"></i>
+                </button>
+              }
+            </div>
             <div class="row__action">
               @if (i.status === 'PAID') {
                 <p-button label="Desfazer" icon="pi pi-undo" size="small" [text]="true" severity="secondary"
@@ -70,6 +89,11 @@ import { StatusTagComponent } from './status-tag.component';
     .row__meta { color: var(--muted); font-size: 0.8125rem; }
     .row__amount { align-items: flex-end; text-align: right; }
     .row__action { display: flex; justify-content: flex-end; }
+    .row__status { display: flex; flex-direction: column; align-items: flex-start; gap: 0.2rem; }
+    .clip { border: 0; background: none; padding: 0.1rem 0.25rem; margin-left: -0.25rem; border-radius: 6px; font: inherit; font-size: 0.8125rem; color: var(--accent); cursor: pointer; display: inline-flex; gap: 0.3rem; align-items: center; }
+    .clip:hover { background: var(--surface-2); text-decoration: underline; }
+    .clip--missing, .clip--add { color: var(--muted); }
+    .clip--add { opacity: 0.75; }
     .num { font-variant-numeric: tabular-nums; }
     .empty { color: var(--muted); margin: 0.5rem 0; }
     @media (max-width: 720px) {
@@ -78,7 +102,7 @@ import { StatusTagComponent } from './status-tag.component';
       .row__amount { max-width: 62vw; }
       .row__amount { grid-area: amount; }
       .row__due { grid-area: due; flex-direction: row; gap: 0.5rem; align-items: baseline; }
-      .row__status { grid-area: status; justify-self: end; }
+      .row__status { grid-area: status; justify-self: end; align-items: flex-end; }
       .row__action { grid-area: action; justify-content: stretch; }
       .row__action ::ng-deep .p-button { width: 100%; }
     }
@@ -87,6 +111,7 @@ import { StatusTagComponent } from './status-tag.component';
 export class InstallmentListComponent {
   protected readonly actions = inject(ActionsService);
   private readonly confirm = inject(ConfirmationService);
+  private readonly docs = inject(DocumentsService);
 
   readonly items = input.required<InstallmentDto[]>();
   readonly showObligation = input(true);
@@ -103,6 +128,10 @@ export class InstallmentListComponent {
     if (d === 1) return 'vence amanhã';
     if (d > 1) return `em ${d} dias`;
     return d === -1 ? 'venceu ontem' : `venceu há ${-d} dias`;
+  }
+
+  protected openDocs(i: InstallmentDto): void {
+    this.docs.openItem({ type: 'INSTALLMENT', id: i.id, label: `${i.obligationName} ${i.seq}/${i.count}` });
   }
 
   protected confirmUndo(i: InstallmentDto): void {

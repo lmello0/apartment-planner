@@ -17,6 +17,7 @@ export const routes: Routes = [
       { path: 'obrigacoes/:id/editar', title: 'Editar obrigação · Planejador do Apê', loadComponent: () => import('./features/obligations/obligation-form.page').then((m) => m.ObligationFormPage) },
       { path: 'marcos', title: 'Marcos · Planejador do Apê', loadComponent: () => import('./features/milestones/milestones.page').then((m) => m.MilestonesPage) },
       { path: 'tarefas', title: 'Tarefas · Planejador do Apê', loadComponent: () => import('./features/tasks/tasks.page').then((m) => m.TasksPage) },
+      { path: 'documentos', title: 'Documentos · Planejador do Apê', loadComponent: () => import('./features/documents/documents.page').then((m) => m.DocumentsPage) },
       { path: 'ajustes', title: 'Ajustes · Planejador do Apê', loadComponent: () => import('./features/settings/settings.page').then((m) => m.SettingsPage) },
     ],
   },

@@ -1,14 +1,101 @@
 :root {
-  --bg: #f5f3ee;
-  --surface: #fffdf9;
-  --ink: #1b2420;
-  --muted: #5b655f;
-  --line: #e2ddd0;
-  --accent: #1f5a47;
-  --danger: #b3361f;
-  --warn: #9a5b00;
-  --ok: #1f6f4a;
-  --radius: 10px;
+  --font-body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Fraunces', 'Iowan Old Style', Georgia, serif;
+
+  /* Casa nova — light: linen walls, clay and olive */
+  --bg: #f3ece1;
+  --surface: #fffaf2;
+  --surface-2: #f8f0e3;
+  --ink: #2a2118;
+  --muted: #655848;
+  --line: #e2d5c1;
+  --accent: #4c5a1f;
+  --accent-soft: #e9edd2;
+  --on-accent: #ffffff;
+  --clay: #a4472a;
+  --danger: #a3321a;
+  --warn: #86500a;
+  --ok: #3b6a26;
+  --radius: 14px;
+  --shadow: 0 1px 2px rgb(58 40 20 / 0.06), 0 6px 18px -8px rgb(58 40 20 / 0.12);
+
+  --side-bg: #3a2c21;
+  --side-ink: #eadfce;
+  --side-muted: #c4b49d;
+  --side-hover: rgb(255 244 224 / 0.09);
+  --side-active-bg: #f1e6d0;
+  --side-active-ink: #2a2118;
+  --side-line: rgb(255 244 224 / 0.14);
+
+  --p-font-family: var(--font-body);
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --bg: #1b1612;
+  --surface: #261f19;
+  --surface-2: #2e261f;
+  --ink: #f0e7d8;
+  --muted: #b8ab97;
+  --line: #3d3329;
+  --accent: #b9c675;
+  --accent-soft: #343a1c;
+  --on-accent: #1b2109;
+  --clay: #e8997c;
+  --danger: #f2937b;
+  --warn: #e3a94e;
+  --ok: #a3c680;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 20px -10px rgb(0 0 0 / 0.5);
+
+  --side-bg: #120f0c;
+  --side-ink: #eadfce;
+  --side-muted: #b3a690;
+  --side-hover: rgb(255 244 224 / 0.07);
+  --side-active-bg: #3a3a1f;
+  --side-active-ink: #e6edbd;
+  --side-line: rgb(255 244 224 / 0.1);
+  color-scheme: dark;
+}
+
+/* PrimeNG messages, tags and quiet buttons take their colours from the same tokens (AA in both themes).
+   :root:root outranks the theme variables PrimeNG injects at runtime. */
+:root:root {
+  --p-button-text-secondary-color: var(--muted);
+  --p-button-text-secondary-hover-background: var(--surface-2);
+  --p-button-outlined-secondary-color: var(--muted);
+  --p-button-outlined-secondary-border-color: var(--line);
+  --p-button-outlined-secondary-hover-background: var(--surface-2);
+  --p-message-error-color: color-mix(in srgb, var(--danger) 78%, var(--ink));
+  --p-message-error-background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+  --p-message-error-border-color: color-mix(in srgb, var(--danger) 40%, var(--surface));
+  --p-message-error-shadow: none;
+  --p-message-success-color: var(--ok);
+  --p-message-success-background: color-mix(in srgb, var(--ok) 10%, var(--surface));
+  --p-message-success-border-color: color-mix(in srgb, var(--ok) 40%, var(--surface));
+  --p-message-success-shadow: none;
+  --p-toast-success-color: color-mix(in srgb, var(--ok) 78%, var(--ink));
+  --p-toast-success-background: color-mix(in srgb, var(--ok) 12%, var(--surface));
+  --p-toast-success-border-color: color-mix(in srgb, var(--ok) 45%, var(--surface));
+  --p-toast-success-detail-color: var(--ink);
+  --p-toast-error-color: color-mix(in srgb, var(--danger) 78%, var(--ink));
+  --p-toast-error-background: color-mix(in srgb, var(--danger) 11%, var(--surface));
+  --p-toast-error-border-color: color-mix(in srgb, var(--danger) 45%, var(--surface));
+  --p-toast-error-detail-color: var(--ink);
+  --p-toast-info-color: var(--ink);
+  --p-toast-info-background: var(--surface-2);
+  --p-toast-info-border-color: var(--line);
+  --p-toast-info-detail-color: var(--ink);
+  --p-tag-danger-color: var(--danger);
+  --p-tag-danger-background: color-mix(in srgb, var(--danger) 14%, var(--surface));
+  --p-tag-warn-color: var(--warn);
+  --p-tag-warn-background: color-mix(in srgb, var(--warn) 16%, var(--surface));
+  --p-tag-success-color: var(--ok);
+  --p-tag-success-background: color-mix(in srgb, var(--ok) 15%, var(--surface));
+  --p-tag-info-color: var(--accent);
+  --p-tag-info-background: var(--accent-soft);
+  --p-tag-secondary-color: var(--muted);
+  --p-tag-secondary-background: var(--surface-2);
+  --p-tag-font-weight: 600;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -19,7 +106,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font-family: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: var(--font-body);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
@@ -28,19 +115,24 @@ a { color: var(--accent); }
 button, input, select, textarea { font-family: inherit; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* PrimeNG inherits the app font */
-:root { --p-font-family: 'IBM Plex Sans', system-ui, sans-serif; }
+::selection { background: var(--accent-soft); color: var(--ink); }
+html { scrollbar-color: var(--line) transparent; }
+input, textarea { caret-color: var(--accent); }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; text-wrap: balance; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
 
 .card {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 1.1rem 1.25rem;
+  padding: 1.25rem 1.5rem;
+  box-shadow: var(--shadow);
 }
 .card > h2, .card__title {
-  margin: 0 0 0.75rem; font-size: 1rem; font-weight: 600; display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem;
+  margin: 0 0 0.85rem; font-size: 1.125rem; font-weight: 600; display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem;
 }
-.num { font-variant-numeric: tabular-nums; }
+.num { font-variant-numeric: tabular-nums lining-nums; }
+td, th, .p-tag, .p-inputnumber-input { font-variant-numeric: tabular-nums; }
 .muted { color: var(--muted); }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
@@ -58,7 +150,7 @@ button, input, select, textarea { font-family: inherit; }
    The container itself ignores the pointer so it can never block the page. */
 p-toast.p-toast { pointer-events: none; max-width: calc(100vw - 2rem); }
 p-toast.p-toast .p-toast-message { pointer-events: auto; }
-p-toast.p-toast.p-toast-bottom-left { left: 15.5rem !important; bottom: 1.25rem !important; }
+p-toast.p-toast.p-toast-bottom-left { left: 16.5rem !important; bottom: 1.25rem !important; }
 @media (max-width: 860px) {
   p-toast.p-toast.p-toast-bottom-left { top: 0.75rem !important; bottom: auto !important; left: 1rem !important; right: 1rem !important; width: auto !important; max-width: none; }
 }
