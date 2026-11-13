@@ -1,0 +1,39 @@
+# Personal documents and data — never commit
+apto-docs/
+seed/*.json
+!seed/*.example.json
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Node / Angular
+node_modules/
+dist/
+.angular/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Local dev runtime data (logs, pids)
+.devdata/
+
+# Cloudflare wrangler local state
+.wrangler/
+
+# Agent skills installed locally by tools (not part of the app)
+.agents/
+.claude/skills/
+skills-lock.json

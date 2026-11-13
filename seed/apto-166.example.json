@@ -1,0 +1,308 @@
+{
+  "settings": {
+    "monthlyCapacity": "0",
+    "inccMonthlyEstimate": "0.50",
+    "igpmMonthlyEstimate": "0.40",
+    "dueSoonDays": 7
+  },
+  "milestones": [
+    {
+      "key": "FINANCING_SIGNED",
+      "expectedDate": null,
+      "actualDate": null
+    },
+    {
+      "key": "CONTRACT_REGISTERED",
+      "expectedDate": null,
+      "actualDate": null
+    },
+    {
+      "key": "DOCS_CALL",
+      "expectedDate": null,
+      "actualDate": null
+    },
+    {
+      "key": "HABITE_SE",
+      "expectedDate": null,
+      "actualDate": null
+    },
+    {
+      "key": "INSPECTION_CALL",
+      "expectedDate": null,
+      "actualDate": null
+    },
+    {
+      "key": "KEY_DELIVERY",
+      "expectedDate": "2028-02-28",
+      "actualDate": null
+    }
+  ],
+  "obligations": [
+    {
+      "name": "Corretagem",
+      "payee": "Imobiliária Exemplo",
+      "category": "BROKERAGE",
+      "status": "CONTRACTED",
+      "fundingSource": "OWN",
+      "correctionIndex": "NONE",
+      "periodicity": "MONTHLY",
+      "count": 6,
+      "amount": "100.00",
+      "amounts": [
+        "100.00",
+        "100.00",
+        "100.00",
+        "100.00",
+        "100.00",
+        "99.60"
+      ],
+      "dayOfMonth": 15,
+      "firstDueDate": "2026-08-15",
+      "anchorMilestone": null,
+      "offsetDays": 0,
+      "notes": null,
+      "payments": [
+        {
+          "seq": 1,
+          "paidOn": "2026-08-15",
+          "amount": "100.00",
+          "method": "BOLETO"
+        },
+        {
+          "seq": 2,
+          "paidOn": "2026-09-15",
+          "amount": "100.00",
+          "method": "BOLETO"
+        },
+        {
+          "seq": 3,
+          "paidOn": "2026-10-15",
+          "amount": "100.00",
+          "method": "BOLETO"
+        }
+      ]
+    },
+    {
+      "name": "Parcelas anuais",
+      "payee": "Construtora",
+      "category": "BUILDER_INSTALLMENT",
+      "status": "CONTRACTED",
+      "fundingSource": "OWN",
+      "correctionIndex": "INCC_DI",
+      "periodicity": "ANNUAL",
+      "count": 2,
+      "amount": "500.00",
+      "amounts": null,
+      "dayOfMonth": null,
+      "firstDueDate": "2026-12-31",
+      "anchorMilestone": null,
+      "offsetDays": 0,
+      "notes": null,
+      "payments": []
+    },
+    {
+      "name": "Mensais 1",
+      "payee": "Construtora",
+      "category": "BUILDER_INSTALLMENT",
+      "status": "CONTRACTED",
+      "fundingSource": "OWN",
+      "correctionIndex": "INCC_DI",
+      "periodicity": "MONTHLY",
+      "count": 6,
+      "amount": "50.00",
+      "amounts": null,
+      "dayOfMonth": 16,
+      "firstDueDate": "2027-02-16",
+      "anchorMilestone": null,
+      "offsetDays": 0,
+      "notes": null,
+      "payments": []
+    },
+    {
+      "name": "Mensais 2",
+      "payee": "Construtora",
+      "category": "BUILDER_INSTALLMENT",
+      "status": "CONTRACTED",
+      "fundingSource": "OWN",
+      "correctionIndex": "INCC_DI",
+      "periodicity": "MONTHLY",
+      "count": 7,
+      "amount": "40.00",
+      "amounts": null,
+      "dayOfMonth": 16,
+      "firstDueDate": "2027-08-16",
+      "anchorMilestone": null,
+      "offsetDays": 0,
+      "notes": null,
+      "payments": []
+    },
+    {
+      "name": "Parcela das chaves",
+      "payee": "Construtora",
+      "category": "BUILDER_INSTALLMENT",
+      "status": "CONTRACTED",
+      "fundingSource": "OWN",
+      "correctionIndex": "INCC_DI",
+      "periodicity": "ONCE",
+      "count": null,
+      "amount": "1000.00",
+      "amounts": null,
+      "dayOfMonth": null,
+      "firstDueDate": null,
+      "anchorMilestone": "KEY_DELIVERY",
+      "offsetDays": 0,
+      "notes": null,
+      "payments": []
+    },
+    {
+      "name": "Financiamento Caixa",
+      "payee": "Caixa Econômica Federal",
+      "category": "FINANCING",
+      "status": "ESTIMATED",
+      "fundingSource": "FINANCING",
+      "correctionIndex": "NONE",
+      "periodicity": "ONCE",
+      "count": null,
+      "amount": "20000.00",
+      "amounts": null,
+      "dayOfMonth": null,
+      "firstDueDate": null,
+      "anchorMilestone": "KEY_DELIVERY",
+      "offsetDays": 2,
+      "notes": "Valor estimado; atualize ao contratar.",
+      "payments": []
+    },
+    {
+      "name": "Juros de obra",
+      "payee": "Caixa Econômica Federal",
+      "category": "CONSTRUCTION_INTEREST",
+      "status": "CONTRACTED",
+      "fundingSource": "OWN",
+      "correctionIndex": "NONE",
+      "periodicity": "OPEN_ENDED",
+      "count": null,
+      "amount": "0.00",
+      "amounts": null,
+      "dayOfMonth": null,
+      "firstDueDate": null,
+      "anchorMilestone": "FINANCING_SIGNED",
+      "offsetDays": 0,
+      "notes": "Valor real lançado manualmente.",
+      "payments": []
+    },
+    {
+      "name": "Condomínio + IPTU",
+      "payee": "Condomínio / Prefeitura",
+      "category": "CONDO_IPTU",
+      "status": "ESTIMATED",
+      "fundingSource": "OWN",
+      "correctionIndex": "NONE",
+      "periodicity": "OPEN_ENDED",
+      "count": null,
+      "amount": "0.00",
+      "amounts": null,
+      "dayOfMonth": null,
+      "firstDueDate": null,
+      "anchorMilestone": "INSPECTION_CALL",
+      "offsetDays": 0,
+      "notes": "Valor estimado a definir.",
+      "payments": []
+    },
+    {
+      "name": "ITBI",
+      "payee": "Prefeitura Exemplo",
+      "category": "FEE_TAX",
+      "status": "CONTRACTED",
+      "fundingSource": "OWN",
+      "correctionIndex": "NONE",
+      "periodicity": "ONCE",
+      "count": null,
+      "amount": "1000.00",
+      "amounts": null,
+      "dayOfMonth": null,
+      "firstDueDate": "2026-11-30",
+      "anchorMilestone": null,
+      "offsetDays": 0,
+      "notes": "Guia de exemplo — base: valor do instrumento × 2%.",
+      "payments": []
+    },
+    {
+      "name": "Registro do contrato (cartório)",
+      "payee": "Cartório Exemplo",
+      "category": "FEE_TAX",
+      "status": "ESTIMATED",
+      "fundingSource": "OWN",
+      "correctionIndex": "NONE",
+      "periodicity": "ONCE",
+      "count": null,
+      "amount": "0.00",
+      "amounts": null,
+      "dayOfMonth": null,
+      "firstDueDate": null,
+      "anchorMilestone": "FINANCING_SIGNED",
+      "offsetDays": 0,
+      "notes": "valor a definir",
+      "payments": []
+    },
+    {
+      "name": "Documentista",
+      "payee": "Documentista",
+      "category": "FEE_TAX",
+      "status": "CONTRACTED",
+      "fundingSource": "OWN",
+      "correctionIndex": "NONE",
+      "periodicity": "ONCE",
+      "count": null,
+      "amount": "10.00",
+      "amounts": null,
+      "dayOfMonth": null,
+      "firstDueDate": "2026-08-25",
+      "anchorMilestone": null,
+      "offsetDays": 0,
+      "notes": null,
+      "payments": [
+        {
+          "seq": 1,
+          "paidOn": "2026-08-25",
+          "amount": "10.00",
+          "method": "PIX"
+        }
+      ]
+    },
+    {
+      "name": "Tarifa de avaliação Caixa",
+      "payee": "Caixa Econômica Federal",
+      "category": "FEE_TAX",
+      "status": "CONTRACTED",
+      "fundingSource": "OWN",
+      "correctionIndex": "NONE",
+      "periodicity": "ONCE",
+      "count": null,
+      "amount": "20.00",
+      "amounts": null,
+      "dayOfMonth": null,
+      "firstDueDate": "2026-08-12",
+      "anchorMilestone": null,
+      "offsetDays": 0,
+      "notes": null,
+      "payments": [
+        {
+          "seq": 1,
+          "paidOn": "2026-08-12",
+          "amount": "20.00",
+          "method": "PIX"
+        }
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "title": "Pagar ITBI",
+      "phase": "SIGNING",
+      "dueDate": "2026-11-15",
+      "notes": null,
+      "obligationName": "ITBI",
+      "installmentSeq": 1
+    }
+  ]
+}

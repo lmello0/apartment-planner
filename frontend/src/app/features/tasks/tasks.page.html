@@ -1,0 +1,72 @@
+<app-page-header title="Tarefas" subtitle="O checklist da compra, do crédito às chaves" [crumbs]="[{ label: 'Tarefas' }]">
+  <p-button label="Nova tarefa" icon="pi pi-plus" (onClick)="openNew()" />
+</app-page-header>
+
+<p-selectbutton class="views" [options]="views" [ngModel]="view()" (ngModelChange)="view.set($event)"
+  optionLabel="label" optionValue="value" [allowEmpty]="false" aria-label="Filtrar tarefas" />
+
+@if (tasks() !== null) {
+  @for (g of groups(); track g.phase) {
+    <section class="card group" [attr.aria-labelledby]="'g-' + g.phase">
+      <h2 [id]="'g-' + g.phase">{{ phaseLabel[g.phase] }} <span class="muted count">{{ g.open }} aberta(s)</span></h2>
+      <ul class="items">
+        @for (t of g.items; track t.id) {
+          <li class="item" [class.item--done]="!!t.doneAt">
+            <p-checkbox [binary]="true" [ngModel]="!!t.doneAt" [inputId]="'t-' + t.id" (onChange)="toggle(t)" [ariaLabel]="(t.doneAt ? 'Reabrir: ' : 'Concluir: ') + t.title" />
+            <label class="item__text" [for]="'t-' + t.id">
+              <span class="item__title">{{ t.title }}</span>
+              <span class="muted item__meta">
+                @if (t.doneAt) { concluída em {{ t.doneAt | dateBr }} }
+                @else if (t.dueDate) { até {{ t.dueDate | dateBr }} }
+                @else { sem prazo }
+                @if (t.source === 'RULE') { · criada por regra }
+              </span>
+            </label>
+            @if (deadline(t); as dl) {
+              @if (dl.text) { <p-tag [value]="dl.text" [severity]="dl.late ? 'danger' : 'warn'" [icon]="dl.late ? 'pi pi-exclamation-triangle' : 'pi pi-clock'" /> }
+            }
+            <span class="item__actions">
+              <p-button icon="pi pi-paperclip" size="small" severity="secondary" [text]="true"
+                [label]="docCount()[t.id] ? '' + docCount()[t.id] : undefined"
+                [ariaLabel]="(docCount()[t.id] || 0) + ' documento(s) de ' + t.title + '. Abrir ou anexar'"
+                (onClick)="docs.openItem({ type: 'TASK', id: t.id, label: t.title })" />
+              <p-button icon="pi pi-pencil" size="small" severity="secondary" [text]="true" [ariaLabel]="'Editar ' + t.title" (onClick)="openEdit(t)" />
+              <p-button icon="pi pi-trash" size="small" severity="danger" [text]="true" [ariaLabel]="'Excluir ' + t.title" (onClick)="confirmDelete(t)" />
+            </span>
+          </li>
+        }
+      </ul>
+    </section>
+  } @empty {
+    <p class="muted" role="status">Nenhuma tarefa neste filtro.</p>
+  }
+} @else {
+  <p class="muted" role="status">Carregando…</p>
+}
+
+<p-dialog [header]="editingId() ? 'Editar tarefa' : 'Nova tarefa'" [modal]="true" [draggable]="false" [dismissableMask]="true"
+  [visible]="dialogOpen()" (visibleChange)="dialogOpen.set($event)" [style]="{ width: '30rem' }" [breakpoints]="{ '575px': '94vw' }">
+  <form [formGroup]="form" (ngSubmit)="save()" class="stack" novalidate>
+    <div class="field">
+      <label for="tk-title">Título *</label>
+      <input pInputText id="tk-title" formControlName="title" autocomplete="off" />
+      @if (form.controls.title.touched && form.controls.title.invalid) { <small class="err">Informe o título.</small> }
+    </div>
+    <div class="field">
+      <label for="tk-phase">Fase</label>
+      <p-select inputId="tk-phase" formControlName="phase" [options]="phases" optionLabel="label" optionValue="value" appendTo="body" fluid />
+    </div>
+    <div class="field">
+      <label for="tk-due">Prazo</label>
+      <p-datepicker inputId="tk-due" formControlName="dueDate" dateFormat="dd/mm/yy" appendTo="body" [showIcon]="true" [showButtonBar]="true" fluid />
+    </div>
+    <div class="field">
+      <label for="tk-notes">Observações</label>
+      <textarea pTextarea id="tk-notes" formControlName="notes" rows="3"></textarea>
+    </div>
+    <div class="form-actions">
+      <p-button type="button" label="Cancelar" severity="secondary" [text]="true" (onClick)="dialogOpen.set(false)" />
+      <p-button type="submit" [label]="editingId() ? 'Salvar tarefa' : 'Criar tarefa'" icon="pi pi-check" [disabled]="form.invalid" [loading]="saving()" />
+    </div>
+  </form>
+</p-dialog>

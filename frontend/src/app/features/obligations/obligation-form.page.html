@@ -1,0 +1,118 @@
+<app-page-header [title]="editing() ? 'Editar obrigação' : 'Nova obrigação'"
+  [subtitle]="editing() ? name() : 'Defina a regra e o app gera o cronograma de parcelas'"
+  [crumbs]="editing()
+    ? [{ label: 'Obrigações', link: '/obrigacoes' }, { label: name(), link: '/obrigacoes/' + id() }, { label: 'Editar' }]
+    : [{ label: 'Obrigações', link: '/obrigacoes' }, { label: 'Nova' }]" />
+
+@if (editing()) {
+  <p-message severity="info" icon="pi pi-info-circle" styleClass="note">
+    Salvar regenera apenas as parcelas ainda não pagas. Parcelas pagas não mudam.
+  </p-message>
+}
+
+<form class="card" [formGroup]="form" (ngSubmit)="save()" novalidate>
+  <div class="form-grid">
+    <div class="field">
+      <label for="f-name">Nome *</label>
+      <input pInputText id="f-name" formControlName="name" autocomplete="off" />
+      @if (form.controls.name.touched && form.controls.name.invalid) { <small class="err">Informe o nome.</small> }
+    </div>
+    <div class="field">
+      <label for="f-payee">Quem recebe *</label>
+      <input pInputText id="f-payee" formControlName="payee" autocomplete="off" />
+      @if (form.controls.payee.touched && form.controls.payee.invalid) { <small class="err">Informe quem recebe.</small> }
+    </div>
+
+    <div class="field">
+      <label for="f-category">Categoria</label>
+      <p-select inputId="f-category" formControlName="category" [options]="categories" optionLabel="label" optionValue="value" appendTo="body" fluid />
+    </div>
+    <div class="field">
+      <label for="f-status">Situação do valor</label>
+      <p-select inputId="f-status" formControlName="status" [options]="statuses" optionLabel="label" optionValue="value" appendTo="body" fluid />
+      <small>"Estimada" quando o valor ainda vai mudar (ex.: financiamento antes da assinatura).</small>
+    </div>
+
+    <div class="field">
+      <label for="f-funding">Origem do recurso</label>
+      <p-select inputId="f-funding" formControlName="fundingSource" [options]="fundings" optionLabel="label" optionValue="value" appendTo="body" fluid />
+    </div>
+    <div class="field">
+      <label for="f-corr">Correção monetária</label>
+      <p-select inputId="f-corr" formControlName="correctionIndex" [options]="corrections" optionLabel="label" optionValue="value" appendTo="body" fluid />
+    </div>
+
+    <div class="field">
+      <label for="f-per">Periodicidade</label>
+      <p-select inputId="f-per" formControlName="periodicity" [options]="periodicities" optionLabel="label" optionValue="value" appendTo="body" fluid />
+    </div>
+    @if (needsCount()) {
+      <div class="field">
+        <label for="f-count">Número de parcelas *</label>
+        <p-inputnumber inputId="f-count" formControlName="count" [min]="1" [max]="480" [useGrouping]="false" fluid />
+        @if (form.controls.count.touched && form.controls.count.invalid) { <small class="err">Informe pelo menos 1 parcela.</small> }
+      </div>
+    }
+
+    <div class="field">
+      <label for="f-amount">Valor da parcela *</label>
+      <p-inputnumber inputId="f-amount" formControlName="amount" mode="decimal" locale="pt-BR" prefix="R$ "
+        [minFractionDigits]="2" [maxFractionDigits]="2" [min]="0" fluid />
+      <small>Use R$ 0,00 quando o valor ainda for desconhecido.</small>
+    </div>
+    @if (periodicity() === 'MONTHLY' || periodicity() === 'OPEN_ENDED') {
+      <div class="field">
+        <label for="f-day">Dia do vencimento</label>
+        <p-inputnumber inputId="f-day" formControlName="dayOfMonth" [min]="1" [max]="31" [useGrouping]="false" placeholder="ex.: 15" fluid />
+        @if (form.controls.dayOfMonth.invalid) { <small class="err">Use um dia entre 1 e 31.</small> }
+      </div>
+    }
+
+    @if (periodicity() === 'MONTHLY' || periodicity() === 'ANNUAL' || periodicity() === 'ONCE') {
+      <div class="field span-2">
+        <label for="f-amounts">Valores diferentes por parcela (opcional)</label>
+        <textarea pTextarea id="f-amounts" formControlName="amountsText" rows="3" placeholder="Um valor por linha, ex.:&#10;2.548,00&#10;2.545,60"></textarea>
+        @if (form.errors?.['amountsFormat']) { <small class="err">Use valores como 2.548,00, um por linha.</small> }
+        @if (form.errors?.['amountsCount']; as e) { <small class="err">São {{ e.expected }} parcela(s), mas você informou {{ e.got }} valor(es).</small> }
+      </div>
+    }
+
+    <div class="field span-2">
+      <span id="f-start-l" class="label">Quando começa</span>
+      <p-selectbutton formControlName="startMode" [options]="startModes" optionLabel="label" optionValue="value" [allowEmpty]="false" aria-labelledby="f-start-l" />
+    </div>
+    @if (startMode() === 'DATE') {
+      <div class="field">
+        <label for="f-first">Primeiro vencimento *</label>
+        <p-datepicker inputId="f-first" formControlName="firstDueDate" dateFormat="dd/mm/yy" appendTo="body" [showIcon]="true" fluid />
+        @if (form.controls.firstDueDate.touched && form.errors?.['startDate']) { <small class="err">Escolha a data.</small> }
+      </div>
+    } @else {
+      <div class="field">
+        <label for="f-anchor">Marco *</label>
+        <p-select inputId="f-anchor" formControlName="anchorMilestone" [options]="milestones" optionLabel="label" optionValue="value" placeholder="Escolha o marco" appendTo="body" fluid />
+      </div>
+      <div class="field">
+        <label for="f-offset">Dias depois do marco</label>
+        <p-inputnumber inputId="f-offset" formControlName="offsetDays" [useGrouping]="false" suffix=" dias" fluid />
+        <small>Use negativo para antes do marco.</small>
+      </div>
+    }
+
+    <div class="field span-2">
+      <label for="f-notes">Observações</label>
+      <textarea pTextarea id="f-notes" formControlName="notes" rows="2"></textarea>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <p-button type="button" label="Cancelar" severity="secondary" [text]="true" (onClick)="cancel()" />
+    <p-button type="submit" [label]="editing() ? 'Salvar alterações' : 'Criar obrigação'" icon="pi pi-check" [disabled]="form.invalid" [loading]="saving()" />
+  </div>
+</form>
+
+<style>
+  :host ::ng-deep .note { margin-bottom: 1rem; }
+  .label { font-weight: 500; }
+  textarea { width: 100%; }
+</style>

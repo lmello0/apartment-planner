@@ -1,0 +1,14 @@
+:host { display: block; }
+.views { display: block; margin-bottom: 1rem; }
+.group { margin-bottom: 0.9rem; }
+.count { font-size: 0.8125rem; font-weight: 400; }
+.items { list-style: none; margin: 0; padding: 0; }
+.item { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0; border-top: 1px solid var(--line); }
+.item:first-child { border-top: 0; }
+.item__text { flex: 1; min-width: 0; display: flex; flex-direction: column; cursor: pointer; }
+.item__title { overflow-wrap: anywhere; }
+.item--done .item__title { text-decoration: line-through; color: var(--muted); }
+.item__meta { font-size: 0.8125rem; }
+.item__actions { display: flex; }
+textarea { width: 100%; }
+@media (max-width: 560px) { .item { flex-wrap: wrap; } .item__text { flex-basis: calc(100% - 3rem); } }
