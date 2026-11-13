@@ -32,3 +32,8 @@ Thumbs.db
 
 # Cloudflare wrangler local state
 .wrangler/
+
+# Agent skills installed locally by tools (not part of the app)
+.agents/
+.claude/skills/
+skills-lock.json
